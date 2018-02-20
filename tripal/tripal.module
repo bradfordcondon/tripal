@@ -1,7 +1,25 @@
 <?php
 /**
  * @file
- * The Tripal Core module
+ * The core Tripal module
+ */
+
+ /**
+  * @defgroup tripal Tripal Module
+  * @ingroup tripal_modules
+  * @{
+  * The core Tripal module provides functionality useful for all other Tripal
+  * modules and extension modules.
+  * @}
+  */
+
+/**
+ * @defgroup tripal_api Tripal API
+ * @ingroup tripal
+ * @{
+ * Tripal provides an application programming interface (API) to support
+ * customizations and creation of new extensions.
+ * @}
  */
 
 // Import the full Tripal API into scope.
@@ -31,15 +49,9 @@ require_once "includes/TripalFields/TripalFieldFormatter.inc";
 require_once "includes/TripalFieldQuery.inc";
 require_once "includes/TripalJob.inc";
 require_once "includes/TripalImporter.inc";
+require_once "includes/TripalEntityCollection.inc";
+require_once "includes/TripalFieldDownloaders/TripalFieldDownloader.inc";
 
-/**
- * @defgroup tripal Tripal Core Module
- * @ingroup tripal_modules
- * @{
- * Functionality useful for all other Tripal modules including the Tripal jobs, files,
- * materialized views and custom table functions.
- * @}
- */
 
 /**
  * Implements hook_views_api().
@@ -97,6 +109,9 @@ function tripal_menu() {
     'file path' => drupal_get_path('module', 'system'),
   );
 
+  /**
+   * Tripal Extensions
+   */
   $items['admin/tripal/storage'] = array(
     'title' => 'Data Storage',
     'description' => t("Tripal is designed to access biological
@@ -145,7 +160,9 @@ function tripal_menu() {
 //     'weight' => -100,
 //   );
 
-  // Jobs Management
+  /**
+   * Jobs Management
+   */
   $items['admin/tripal/tripal_jobs'] = array(
     'title' => 'Jobs',
     'description' => t('Provides tools for managing jobs submitted to Tripal.  In some
@@ -257,23 +274,21 @@ function tripal_menu() {
   /*
    * Term Lookup
    */
-// TODO: finish this menu callback.
-//   $items['cv/lookup'] = array(
-//     'title' => 'Vocabulary Lookup',
-//     'description' => t("Provides a tool to discover controlled vocabularies and their terms used by this site."),
-//     'access arguments' => array('access content'),
-//     'page callback' => 'drupal_get_form',
-//     'page arguments' => array('tripal_vocabulary_lookup_form'),
-//     'file' => 'includes/tripal.term_lookup.inc',
-//     'file path' => drupal_get_path('module', 'tripal'),
-//     'type' => MENU_NORMAL_ITEM,
-//   );
+   $items['cv/lookup'] = array(
+     'title' => 'Controlled Vocabularies',
+     'description' => t("A tool to explore the controlled vocabularies that are used on this site."),
+     'access arguments' => array('access content'),
+     'page callback' => 'tripal_vocabulary_lookup_page',
+     'file' => 'includes/tripal.term_lookup.inc',
+     'file path' => drupal_get_path('module', 'tripal'),
+     'type' => MENU_NORMAL_ITEM,
+   );
 
   $items['cv/lookup/%'] = array(
-    'title' => 'Vocabulary Lookup',
+    'title' => 'Vocabulary Details',
     'description' => t("Provides a tool to discover controlled vocabularies"),
     'access arguments' => array('access content'),
-    'page callback' => 'tripal_vocabulary_lookup_page',
+    'page callback' => 'tripal_vocabulary_lookup_vocab_page',
     'page arguments' => array(2),
     'file' => 'includes/tripal.term_lookup.inc',
     'file path' => drupal_get_path('module', 'tripal'),
@@ -285,6 +300,15 @@ function tripal_menu() {
     'description' => t("Provides a tool to discover controlled vocabularies terms used by this site."),
     'access arguments' => array('access content'),
     'page callback' => 'tripal_vocabulary_lookup_term_page',
+    'page arguments' => array(2, 3),
+    'file' => 'includes/tripal.term_lookup.inc',
+    'file path' => drupal_get_path('module', 'tripal'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['cv/lookup/%/%/children'] = array(
+    'access arguments' => array('access content'),
+    'page callback' => 'tripal_vocabulary_lookup_term_children_ajax',
     'page arguments' => array(2, 3),
     'file' => 'includes/tripal.term_lookup.inc',
     'file path' => drupal_get_path('module', 'tripal'),
@@ -311,17 +335,29 @@ function tripal_menu() {
   );
 
 
+  $items['admin/tripal/loaders'] = array(
+    'title' => 'Data Loaders',
+    'description' => t('Tools facilitating data import.'),
+    'access arguments' => array('load tripal data'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 6
+  );
+
   // Add in the loaders
   $importers = tripal_get_importers();
   foreach ($importers as $class_name) {
     tripal_load_include_importer_class($class_name);
     if (class_exists($class_name)) {
-      $items['admin/tripal/loaders/' . $class_name::$machine_name] = array(
+      $menu_path = 'admin/tripal/loaders/' . $class_name::$machine_name;
+      if ($class_name::$menu_path) {
+        $menu_path = $class_name::$menu_path;
+      }
+      $items[$menu_path] = array(
         'title' => $class_name::$name,
         'description' =>  $class_name::$description,
         'page callback' => 'drupal_get_form',
         'page arguments' => array('tripal_get_importer_form', $class_name),
-        'access arguments' => array('administer tripal'),
+        'access arguments' => array('load tripal data'),
         'type' => MENU_NORMAL_ITEM,
         'file' => 'includes/tripal.importer.inc',
         'file path' => drupal_get_path('module', 'tripal'),
@@ -329,7 +365,76 @@ function tripal_menu() {
     }
   }
 
+  /**
+   * Data Collections
+   */
+  $items['user/%/data-collections'] = array (
+    'title' => 'Data Collections',
+    'description' => 'Your list of saved data collections',
+    'page callback' => 'tripal_user_collections_page',
+    'access callback' => 'tripal_accesss_user_collections',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'includes/tripal.collections.inc',
+    'file path' => drupal_get_path('module', 'tripal'),
+  );
+
+  $items['user/%/data-collections/%/delete'] = array (
+    'title' => 'Delete a Collections',
+    'description' => 'Deletes a data collection.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tripal_user_collections_delete_form', 1, 3),
+    'access callback' => 'tripal_accesss_user_collections',
+    'access arguments' => array(1),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/tripal.collections.inc',
+    'file path' => drupal_get_path('module', 'tripal'),
+  );
+
+  $items['admin/tripal/data-collections'] = array(
+    'title' => 'Data Collections',
+    'description' => t('Site-wide settings for data collections'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tripal_admin_data_collection_form'),
+    'access arguments' => array('administer tripal'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => 0,
+    'file' => 'includes/tripal.admin.inc',
+    'file path' => drupal_get_path('module', 'tripal'),
+  );
+
   return $items;
+}
+
+function tripal_accesss_user_collections($uid) {
+  if (!tripal_access_user_data($uid)) {
+    return FALSE;
+  }
+  $collections_enabled = variable_get('tripal_data_collections_enabled', 1);
+  if (!$collections_enabled) {
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * Access callback for accessing a user's Tripal-added private data.
+ *
+ * The User account being accessed must match the ID of the current user. This
+ * function can be used to check access for any type of user-specfic data
+ * added by any Tripal module.
+ *
+ * @param  $uid
+ *   The UID of the user's account to access.
+ * @return boolean
+ */
+function tripal_access_user_data($uid) {
+  global $user;
+
+  if ($uid == $user->uid) {
+    return TRUE;
+  }
+  return FALSE;
 }
 
 /**
@@ -351,6 +456,15 @@ function tripal_permission() {
       'title' => t('Manage Tripal content types'),
       'description' => t('Allows the user to create, update and delete Tripal content types.'),
       'restrict access' => TRUE,
+    ),
+    'publish tripal content' => array(
+      'title' => t('Publish Tripal content types'),
+      'description' => t('Allows the user to publish Tripal content for online access.'),
+      'restrict access' => TRUE,
+    ),
+    'load tripal data' => array(
+      'title' => t('Load data into the Tripal site'),
+      'description' => t('Allows the user to load data into the Tripal site using data loaders. Some data loaders may have their own specific permission as well.'),
     ),
     'upload files' => array(
       'title' => t('Upload Files'),
@@ -463,6 +577,7 @@ function tripal_libraries_info() {
  * Define administrative paths.
  */
 function tripal_admin_paths() {
+  $paths = array();
   if (variable_get('node_admin_theme')) {
     $paths = array(
       'bio_data/*/edit' => TRUE,
@@ -470,8 +585,9 @@ function tripal_admin_paths() {
       'bio_data/add' => TRUE,
       'bio_data/add/*' => TRUE,
     );
-    return $paths;
   }
+  $paths['cv/lookup/*/*'] = TRUE;
+  return $paths;
 }
 
 /**
@@ -626,6 +742,7 @@ function tripal_import_api() {
   module_load_include('inc', 'tripal', 'api/tripal.notice.api');
   module_load_include('inc', 'tripal', 'api/tripal.variables.api');
   module_load_include('inc', 'tripal', 'api/tripal.upload.api');
+  module_load_include('inc', 'tripal', 'api/tripal.collections.api');
   module_load_include('inc', 'tripal', 'api/tripal.DEPRECATED.api');
 }
 
@@ -642,13 +759,18 @@ function tripal_form_alter(&$form, $form_state, $form_id) {
   }
 
   // Remove fields that have no form. It's just a bit too confusing to have
-  // widgets appear in the form but without and form elements inside them.
+  // widgets appear in the form but without any form elements inside them.
   if ($form_id == 'tripal_entity_form') {
     $children = element_children($form);
     foreach ($children as $child) {
-      // count the number of form elements
+      // Count the number of form elements.
       if (array_key_exists('und', $form[$child])) {
         $total_widgets = 0;
+        // Some fields with cardinality of one that aren't TripalFields
+        // may not have an array, so we need to catch those.
+        if (array_key_exists('#type', $form[$child]['und'])) {
+          $total_widgets++;
+        }
         foreach ($form[$child]['und'] as $delta => $element) {
           if (is_numeric($delta)) {
             $total_widgets += count(element_children($element));
@@ -893,7 +1015,7 @@ function tripal_block_save($delta = '', $edit = array()) {
 /**
  * Implements hook_block_configure().
  */
-function tripal_block_configure ($delta = '') {
+function tripal_block_configure($delta = '') {
   $form = array();
 
   switch ($delta) {
@@ -928,14 +1050,23 @@ function tripal_block_configure ($delta = '') {
  * Implements hook_cron().
  */
 function tripal_cron() {
+
+  // Add jobs to the Tripal queue for commong tasks.
+  $args = array();
+  $includes = array();
+
   if (variable_get('tripal_admin_notification_creation_during_cron', TRUE)) {
     $modules = module_implements('tripal_cron_notification');
     foreach ($modules as $module) {
       $function = $module . '_tripal_cron_notification';
-      $function();
+      tripal_add_job("Cron: Checking for '$module' notifications.", 'tripal',
+        $function, $args, 1, $includes, TRUE);
     }
-    watchdog('tripal_cron', 'tripal_cron ran');
   }
+
+  // Check for expired collections.
+  tripal_add_job('Cron: Checking expired collections', 'tripal',
+    'tripal_expire_collections', $args, 1, $includes, TRUE);
 }
 
 /**
@@ -959,6 +1090,8 @@ function tripal_element_info() {
   //       stored in the 'module' column of the file_usage table.
   //    -#allowed_types:  An array of file extensions that are allowed for
   //       to be uploaded.
+  //    -#cardinality:  A numeric value indicating the number of files the
+  //       user can upload. Set to 0 for unlimited.
   $elements['html5_file'] = array(
     '#input' => 'TRUE',
     '#process' => array('tripal_html5_file_process'),
@@ -979,13 +1112,29 @@ function tripal_html5_file_process($element, $form_state, $complete_form) {
   $name = $element['#name'];
   $name = preg_replace('/[^\w]/', '_', $name);
   $allowed_types = array_key_exists('#allowed_types', $element) ? $element['#allowed_types'] : array();
+  $cardinality = array_key_exists('#cardinality', $element) ? $element['#cardinality'] : 1;
+  $paired = array_key_exists('#paired', $element) ? $element['#paired'] : FALSE;
 
-  $headers = array(
-    array('data' => 'File'),
-    array('data' => 'Size', 'width' => '10%'),
-    array('data' => 'Upload Progress', 'width' => '20%'),
-    array('data' => 'Action', 'width' => '10%')
-  );
+  if ($paired) {
+    $headers = array(
+      array('data' => 'File #1'),
+      array('data' => 'Size', 'width' => '10%'),
+      array('data' => 'Upload Progress', 'width' => '20%'),
+      array('data' => 'Action', 'width' => '10%'),
+      array('data' => 'File #2'),
+      array('data' => 'Size', 'width' => '10%'),
+      array('data' => 'Upload Progress', 'width' => '20%'),
+      array('data' => 'Action', 'width' => '10%')
+    );
+  }
+  else {
+    $headers = array(
+      array('data' => 'File'),
+      array('data' => 'Size', 'width' => '10%'),
+      array('data' => 'Upload Progress', 'width' => '20%'),
+      array('data' => 'Action', 'width' => '10%'),
+    );
+  }
   $rows = array();
   $table_vars = array(
     'header'      => $headers,
@@ -1029,11 +1178,20 @@ function tripal_html5_file_process($element, $form_state, $complete_form) {
     )
   );
 
+  if (!$paired) {
+    $categories = array($element['#usage_id'] . '-' . $element['#usage_type']);
+  }
+  else {
+    $categories = array(
+      $element['#usage_id'] . '-' . $element['#usage_type'] . '-f',
+      $element['#usage_id'] . '-' . $element['#usage_type'] . '-r',
+    );
+  }
   $uploader_settings = array(
     'table_id' => '#tripal-html5-file-upload-table-' . $type,
     'submit_id' => '#tripal-html5-file-upload-submit-' . $type,
-    'category' => array($element['#usage_id'] . '-' . $element['#usage_type']),
-    'cardinality' => 1,
+    'category' => $categories,
+    'cardinality' => $cardinality,
     'target_id' => 'tripal-html5-upload-fid-' . $type,
     'module' => $module,
     'allowed_types' => $allowed_types,
@@ -1054,7 +1212,10 @@ function tripal_html5_file_validate($element, &$form_state) {
   $is_required = $element['#required'];
   $name = $element['#name'];
   $name = preg_replace('/[^\w]/', '_', $name);
-  $fid = $element['#value'][$name];
+  $fid = NULL;
+  if (is_array($element['#value']) and $array_key_exists($name, $element['#value'])) {
+    $fid = $element['#value'][$name];
+  }
 
   // TODO: the fid should just be the $element['#value'] why isn't this
   // working given the tripal_html5_file_value function below.
@@ -1181,4 +1342,3 @@ function tripal_field_group_table_rows_alter(&$element, &$children) {
     }
   }
 }
-

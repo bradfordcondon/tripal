@@ -54,6 +54,8 @@ function tripal_chado_field_storage_write($entity_type, $entity, $op, $fields) {
   elseif ($type_field and !$linker) {
     $values[$type_field] = $cvterm->cvterm_id;
   }
+
+
   $base_record_id = tripal_chado_field_storage_write_table($base_table, $values, $base_table);
 
   // If this is an insert then add the chado_entity record.
@@ -107,7 +109,7 @@ function tripal_chado_field_storage_write($entity_type, $entity, $op, $fields) {
  * @return
  *   The unique record ID.
  */
-function tripal_chado_field_storage_write_table($table_name, $values, $base_table, $base_pkey = NULL, $base_record_id= NULL) {
+function tripal_chado_field_storage_write_table($table_name, $values, $base_table, $base_pkey = NULL, $base_record_id = NULL) {
   $schema = chado_get_schema($table_name);
   $fkeys = $schema['foreign keys'];
   $pkey = $schema['primary key'][0];
@@ -519,7 +521,7 @@ function tripal_chado_field_storage_query($query) {
         $field_obj = new $field_type($field, $instance);
         $field_obj->query($cquery, $condition);
       }
-      // If there is no ChadoField class for this field then add the
+      // If there is not a ChadoField class for this field then add the
       // condition as is.
       else {
         $alias = $field['field_name'];
@@ -532,7 +534,45 @@ function tripal_chado_field_storage_query($query) {
           // Get the base table column that is associated with the term
           // passed as $condition['column'].
           $base_field = tripal_get_chado_semweb_column($chado_table, $condition['column']);
-          $cquery->condition('base.' . $base_field , $condition['value'], $condition['operator']);
+
+          $matches = array();
+          $key = $condition['value'];
+          $op = '=';
+          if (preg_match('/^(.+);(.+)$/', $key, $matches)) {
+            $key = $matches[1];
+            $op = $matches[2];
+          }
+          switch ($op) {
+            case 'eq':
+              $op = '=';
+              break;
+            case 'gt':
+              $op = '>';
+              break;
+            case 'gte':
+              $op = '>=';
+              break;
+            case 'lt':
+              $op = '<';
+              break;
+            case 'lte':
+              $op = '<=';
+              break;
+            case 'ne':
+              $op = '<>';
+              break;
+            case 'contains':
+              $op = 'LIKE';
+              $key = '%' . $key . '%';
+              break;
+            case 'starts':
+              $op = 'LIKE';
+              $key = $key . '%';
+              break;
+            default:
+              $op = '=';
+          }
+          $cquery->condition('base.' . $base_field , $key, $op);
         }
         if ($chado_table != $base_table) {
           // TODO: I don't think we'll get here because linker fields will
@@ -656,7 +696,7 @@ function tripal_chado_field_storage_query($query) {
 function tripal_chado_field_storage_bundle_mapping_form($form, &$form_state,
     $term, &$submit_disabled) {
 
-  $selected_term_id = $term->cvterm_id;
+  $selected_term_id = (is_object($term)) ? $term->cvterm_id : NULL;
 
   // Initialize the form.
   $form = array();
@@ -846,7 +886,7 @@ function tripal_chado_field_storage_bundle_mapping_form_add_type(&$form,
   // Get the list of columns in the default table.
   $schema = chado_get_schema($default['table']);
   $column_options = array('none' => '--None--');
-  $cvt_fkeys = array_keys($schema['foreign keys']['cvterm']['columns']);
+  $cvt_fkeys = (isset($schema['foreign keys']['cvterm'])) ? array_keys($schema['foreign keys']['cvterm']['columns']) : array();
   foreach ($schema['fields'] as $column_name => $column_details) {
     if (in_array($column_name, $cvt_fkeys)) {
       $column_options[$column_name] = $column_name;
@@ -1289,5 +1329,4 @@ function tripal_chado_field_storage_bundle_mapping_form_submit($form,
     $storage_args['type_column'] = 'cvterm_id';
   }
 }
-
 

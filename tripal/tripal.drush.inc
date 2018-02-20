@@ -41,7 +41,10 @@ function tripal_drush_help($command) {
       break;
     case 'trp-list-jobs':
       break;
-
+    case 'trp-prepare-chado':
+      break;
+    case 'trp-set-permissions':
+      break;
   }
 }
 
@@ -64,7 +67,7 @@ function tripal_drush_command() {
     ),
   );
   $items['trp-run-jobs'] = array(
-    'description' => dt('Launches jobs waiting in the queue. Only one job can execute at a time unless the --parllel=1 option is provided.'),
+    'description' => dt('Launches jobs waiting in the queue. Only one job can execute at a time unless the --parallel=1 option is provided.'),
     'examples' => array(
       'Single Job' => 'drush trp-run-jobs --username=administrator',
       'Parallel Job' => 'drush trp-run-jobs --username=administrator --parallel=1',
@@ -108,7 +111,20 @@ function tripal_drush_command() {
       'single' => dt('Execute only one queued job'),
     ),
   );
-
+  $items['trp-prepare-chado'] = array(
+    'description' => dt('Prepares a new Tripal installation with content types, requires the username of an administrator to run.'),
+    'arguments'   => array(),
+    'examples' => array(
+      'Standard example' => 'drush trp-prepare-chado --user=administrator',
+    ),
+  );
+  $items['trp-set-permissions'] = array(
+    'description' => dt('Gives view, edit, delete, create priveleges to administrators for all tripal content types.'),
+    'arguments'   => array(),
+    'examples' => array(
+      'Standard example' => 'drush trp-set-permissions --user=administrator',
+    ),
+  );
   return $items;
 }
 
@@ -145,6 +161,37 @@ function drush_tripal_set_user($username) {
  *
  * @ingroup tripal_drush
  */
+function drush_tripal_trp_run_jobs_install($username) {
+  $parallel = drush_get_option('parallel');
+  $job_id   = drush_get_option('job_id');
+  $max_jobs = drush_get_option('max_jobs', -1);
+  $single   = drush_get_option('single', 0);
+
+  drush_tripal_set_user($username);
+
+  drush_print("\n" . date('Y-m-d H:i:s'));
+  if ($parallel) {
+    drush_print("Tripal Job Launcher (in parallel)");
+    if ($max_jobs !== -1) drush_print("Maximum number of jobs is " . $max_jobs);
+    drush_print("Running as user '$username'");
+    drush_print("-------------------");
+    tripal_launch_job($parallel, $job_id, $max_jobs, $single);
+  }
+  else {
+    drush_print("Tripal Job Launcher");
+    drush_print("Running as user '$username'");
+    drush_print("-------------------");
+    tripal_launch_job(0, $job_id, $max_jobs, $single);
+  }
+}
+
+/**
+ * Executes jobs in the Tripal Jobs Queue.
+ *
+ * Executed when 'drush trp-run-job' is called.
+ *
+ * @ingroup tripal_drush
+ */
 function drush_tripal_trp_run_jobs() {
   $parallel = drush_get_option('parallel');
   $job_id   = drush_get_option('job_id');
@@ -153,7 +200,7 @@ function drush_tripal_trp_run_jobs() {
 
   // Unfortunately later versions of Drush use the '--user' argument which
   // makes it incompatible with how Tripal was using it.  For backwards
-  // compatabiliy we will accept --user with a non numeric value only. The
+  // compatibility we will accept --user with a non numeric value only. The
   // numeric value should be for Drush. Tripal will instead use the
   // --username argument for the fture.
   $user = drush_get_option('user');
@@ -272,6 +319,74 @@ function drush_tripal_trp_get_currjob() {
   drush_log('Running tripal-current-job', 'ok');
 }
 
+/**
+ * Prepares content types on the site after chado installation.
+ *
+ * Executed when 'drush trp-prepare-chado' is called.
+ *
+ * @ingroup tripal_drush
+ */
+function drush_tripal_trp_prepare_chado() {
+  $user = drush_get_option('user');
+  $uname = drush_get_option('username');
+  if ($user and is_numeric($user)) {
+  }
+  elseif ($user) {
+    print "\nNOTE: Use of the --user argument is deprecated as it conflicts with the --user argument of Drush 7.x. Please now use --username instead.\n\n";
+    $username = $user;
+  }
+  if ($uname) {
+    $username = $uname;
+  }
 
+  drush_tripal_set_user($username);
 
+  print_r("Now preparing the site by creating content types.\n");
+  $prepare = drush_invoke_process('@self', 'php-eval', array("module_load_include('inc', 'tripal_chado', 'includes/setup/tripal_chado.setup'); tripal_chado_prepare_drush_submit();"), array());
+  drush_invoke_process('@self', 'php-eval', array("module_load_include('inc', 'tripal', 'tripal.drush'); drush_tripal_trp_run_jobs_install(" . $username . ");"), array());
+  if (!$prepare) {
+    echo "An error occurred when attempting to install Chado. Please navigate to your new site and finish the installation process from the 'Install Tripal' section as described in the online help, found here http://tripal.info/tutorials/v3.x/installation/tripal \n";
+    exit;
+  }
+}
 
+/**
+ * Sets permissions for the content types on the site.
+ *
+ * Executed when 'drush trp-set-permissions' is called.
+ *
+ * @ingroup tripal_drush
+ */
+function drush_tripal_trp_set_permissions() {
+  $user = drush_get_option('user');
+  $uname = drush_get_option('username');
+  if ($user and is_numeric($user)) {
+  }
+  elseif ($user) {
+    print "\nNOTE: Use of the --user argument is deprecated as it conflicts with the --user argument of Drush 7.x. Please now use --username instead.\n\n";
+    $username = $user;
+  }
+  if ($uname) {
+    $username = $uname;
+  }
+
+  drush_tripal_set_user($username);
+  $permissions = array();
+  $bundles =
+  db_select('tripal_bundle', 'TB')
+    ->fields('TB', array('name'))
+    ->execute()
+    ->fetchAll();
+  print_r($bundles);
+  foreach ($bundles as $bundles => $bundle) {
+    array_push($permissions, ' view ' . $bundle->name, ' create ' . $bundle->name,
+      ' edit ' . $bundle->name, ' delete ' . $bundle->name);
+  }
+  $string_permissions = implode(",", $permissions);
+  $args4 = array('administrator', $string_permissions);
+  $options4 = array();
+  drush_invoke_process('@self', 'role-add-perm', $args4, $options4);
+
+  drush_print(dt(""));
+  drush_print(dt("Permissions is now complete."));
+}

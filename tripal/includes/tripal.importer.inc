@@ -35,6 +35,8 @@ function tripal_get_importer_form($form, &$form_state, $class) {
         'then the status will quickly update to "Complete".',
       '#usage_type' => 'tripal_importer',
       '#usage_id' => 0,
+      '#allowed_types' => $class::$file_types,
+      '#cardinality' => $class::$cardinality,
     );
   }
 
@@ -76,7 +78,6 @@ function tripal_get_importer_form($form, &$form_state, $class) {
       '#options' => $analyses,
     );
   }
-
 
   $importer = new $class();
   $element = array();
@@ -159,7 +160,6 @@ function tripal_get_importer_form_submit($form, &$form_state) {
   unset($run_args['op']);
   unset($run_args['button']);
 
-
   $file_local = NULL;
   $file_upload = NULL;
   $file_remote = NULL;
@@ -191,9 +191,14 @@ function tripal_get_importer_form_submit($form, &$form_state) {
   }
   try {
 
-    // Now allow the loader to do it's own submit if needed.
+    // Now allow the loader to do its own submit if needed.
     $importer = new $class();
     $importer->formSubmit($form, $form_state);
+    // If the formSubmit made changes to the $form_state we need to update the
+    // $run_args info.
+    if ($run_args !== $form_state['values']) {
+      $run_args = $form_state['values'];
+    }
 
     // If the importer wants to rebuild the form for some reason then let's
     // not add a job.

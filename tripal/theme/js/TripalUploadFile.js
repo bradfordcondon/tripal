@@ -13,7 +13,7 @@
     this.file = file;
     this.options = options;
     this.file_size = file.size;
-    this.chunk_size = (1024 * 2000); // 2024MB
+    this.chunk_size = (1024 * 2000); 
     this.total_chunks = ((this.file.size % this.chunk_size == 0) ? Math.floor(this.file.size / this.chunk_size) : Math.floor(this.file.size / this.chunk_size) + 1); 
     this.curr_chunk = 0;
     this.status = 'pending';
@@ -285,7 +285,7 @@
         var parent = self.options['parent'];
         var tname = self.options['tname'];
         var category = self.options['category'];
-        parent.setTarget(this.file_id, tname, category);
+        parent.setTarget(tname);
       }
       else if (this.status == 'paused') {
         $("<span>", {
@@ -297,7 +297,7 @@
       if (this.status == 'uploading' || this.status == 'checking' || this.status == 'merging') {
         $("<img>", {
            'src': tripal_path + '/theme/images/ajax-loader.gif',
-           'class' : 'tripal-chunked-file-progress-throbber',
+           'class' : 'tripal-uploader-chunked-file-progress-throbber',
          }).appendTo('#' + progress_id);
       }
       
@@ -362,10 +362,10 @@
         var index = self.options['index'];
         var tname = self.options['tname'];
         var category = self.options['category'];
-        parent.removeFile(category, index);
+        parent.removeFile(tname, category, index);
         parent.updateTable(category);
         // Unset the parent's target field.
-        parent.setTarget(null, tname, category);
+        parent.setTarget(tname);
         self.cancel();
       })
     }
@@ -384,22 +384,22 @@
       if (this.status == 'uploading') {
         $('#' + progress_id).html('');
         $("<span>", {
-          'class': 'tripal-chunked-file-progress-label',
+          'class': 'tripal-uploader-chunked-file-progress-label',
           'text': size_transferred,
         }).appendTo($("<div>", {
           'id': progress_id + '-bar',
-          'class': 'tripal-chunked-file-progress',
+          'class': 'tripal-uploader-chunked-file-progress',
           'width': progress + '%'
         }).appendTo($("<div>", {
           'id': progress_id + '-box',
-          'class': 'tripal-chunked-file-progress',
+          'class': 'tripal-uploader-chunked-file-progress',
         }).appendTo('#' + progress_id)));
 
       }
       if (this.status == 'uploading' || this.status == 'checking' || this.status == 'merging') {
         $("<img>", {
            'src': tripal_path + '/theme/images/ajax-loader.gif',
-           'class' : 'tripal-chunked-file-progress-throbber',
+           'class' : 'tripal-uploader-chunked-file-progress-throbber',
          }).appendTo('#' + progress_id);
       }
       

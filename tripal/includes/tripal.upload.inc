@@ -47,7 +47,7 @@ function tripal_file_upload($type, $filename, $action = NULL, $chunk = 0) {
       tripal_file_upload_put($filename, $chunk, $user_dir);
       break;
     case 'check':
-      tripal_file_upload_check($filename, $chunk, $user_dir);
+      tripal_file_upload_verify($filename, $chunk, $user_dir);
       break;
     case 'merge':
       tripal_file_upload_merge($filename, $type, $user_dir);
@@ -118,6 +118,7 @@ function tripal_file_upload_merge($filename, $type, $user_dir) {
       $status = 'failed';
       $message = 'Cannot open merged file: ' . $merge_file . '.';
     }
+    flock($merge_fh, LOCK_UN);
     fclose($merge_fh);
   }
 
@@ -171,7 +172,7 @@ function tripal_file_upload_merge($filename, $type, $user_dir) {
  *   returns a JSON array with a status, message and the
  *   current chunk.
  */
-function tripal_file_upload_check($filename, $chunk, $user_dir) {
+function tripal_file_upload_verify($filename, $chunk, $user_dir) {
 
   $chunk_size = $_GET['chunk_size'];
 
@@ -234,6 +235,7 @@ function tripal_file_upload_put($filename, $chunk, $user_dir) {
       while ($data = fread($putdata, 1024)) {
         fwrite($fh, $data);
       }
+      flock($fh, LOCK_UN);
       fclose($fh);
     }
   }
@@ -271,6 +273,7 @@ function tripal_file_upload_read_log($temp_dir) {
       }
       $log = unserialize($contents);
     }
+    flock($fh, LOCK_UN);
     fclose($fh);
   }
   if (!is_array($log)) {
@@ -309,5 +312,6 @@ function tripal_file_upoad_write_log($temp_dir, $log) {
   if ($fh and flock($fh, LOCK_EX)) {
     fwrite($fh, serialize($log));
   }
+  flock($fh, LOCK_UN);
   fclose($fh);
 }

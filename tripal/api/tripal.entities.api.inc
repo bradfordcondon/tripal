@@ -1,5 +1,143 @@
 <?php
+/**
+ * @file
+ * Provides an application programming interface (API) for working with
+ * TripalEntity content types (bundles) and their entities.
+ */
 
+/**
+ * @defgroup tripal_entities_api Tripal Entities
+ * @ingroup tripal_api
+ * @{
+ * Provides an application programming interface (API) for working with
+ * TripalEntity content types (bundles) and their entities.
+ * @}
+ *
+ */
+
+
+/**
+ * Allows a module to make changes to an entity object after creation.
+ *
+ * This function is added by Tripal to allow datastore backends to add
+ * addition properties to the entity that they themselves will use later.
+ *
+ * @param $entity
+ * @param $entity_type
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_entity_create(&$entity, $entity_type) {
+
+}
+
+/**
+ * Allows a module to perform tasks after a TripalBundle object is created.
+ *
+ * @param $bundle
+ *   The newly created TripalBundle object.
+ * @param $storage_args
+ *   Arguments passed to the storage backend for this bundle.  These arguments
+ *   typically provide details for how to associate this bundle with records
+ *   in the storage system.  Each storage system will have its own set of
+ *   arguments that it will expect.
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_bundle_create(&$bundle, $storage_args) {
+
+}
+/**
+ * Allows a module to perform tasks after fields are added to a TripalBundle.
+ *
+ * @param $bundle
+ *   The newly created TripalBundle object.
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_bundle_postcreate(&$bundle) {
+
+}
+/**
+ * Allows a module to add admin notifications to the associated tripal table
+ * during the cron run.
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_tripal_cron_notification() {
+
+}
+
+/**
+ * Allows a module to perform tasks before a TripalBundle object is deleted.
+ *
+ * @param $bundle
+ *   The newly created TripalBundle object.
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_bundle_delete($bundle) {
+
+}
+
+/**
+ * Implement this hook to define default formats for Tripal Content Types.
+ *
+ * @param TripalBundle $bundle
+ *   A tripal content type entity with information to be used for determining the default title format.
+ * @param array $available_tokens
+ *   An array of available tokens for this particular tripal content type.
+ *
+ * @return array
+ *   An array of potential formats. The lightest weighted format suggested by all modules will be chosen.
+ *   Each array item should consist of a 'weight' and 'format'. See the hook implementation below
+ *   for examples.
+ *    - weight: an integer used to determine priority of suggestions.
+ *        The smaller/lighter the number the higher the priority.
+ *        Best practice is to use a weight less than 0 for extension modules.
+ *        specifically, -2 is a good weight for calculated formats and -5 is a
+ *        good weight for hard-coded formats specific to a given type.
+ *    - format: a string including approved tokens used to determine the title
+ *        on Tripal content pages.
+ *
+ * @ingroup tripal_entities_api
+ */
+function hook_tripal_default_title_format($bundle, $available_tokens) {
+  $format = array();
+
+  // If you want to suggest a default format for a particular vocabulary term:
+  //---------------------------------------------------------------------------
+  // Load the term associated with this Tripal Content type.
+  $term = entity_load('TripalTerm', array('id' => $bundle->term_id));
+  $term = reset($term);
+
+  // If it's the term you are interested in then suggest a format.
+  if ($term->name == 'organism') {
+
+    // To suggest a format, add an element to the array with a format & weight key.
+    $format[] = array(
+      // This is the format/pattern you suggest be used to determine the title of organism pages.
+      'format' => '[organism__genus] [organism__species]',
+      // The weight/priority of your suggestion.
+      'weight' => -5
+    );
+
+  }
+
+  // Say you know that in your particular site, all 'names' are required
+  // and you want to only use the human-readable name:
+  //---------------------------------------------------------------------------
+  $name_field = preg_grep('/__name]$/', array_keys($available_tokens));
+  $name_field = reset($name_field);
+  if (is_string($name_field)) {
+    $format[] = array(
+      'format' => $name_field,
+      'weight' => -2,
+    );
+  }
+
+  return $format;
+}
 
 /**
  * A replacement for the entity_load function of Drupal.
@@ -18,12 +156,14 @@
  * @param $reset: Whether to reset the internal cache for the requested entity
  *   type. Defaults to FALSE.
  * @param $field_ids
- *   A list of numeric feild IDs that should be loaded.  The
+ *   A list of numeric field IDs that should be loaded.  The
  *   TripalField named 'content_type' is always automatically added.
  *
  * @return
  *   An array of entity objects indexed by their ids. When no results are
  *   found, an empty array is returned.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_load_entity($entity_type, $ids = FALSE, $reset = FALSE,
     $field_ids = array()) {
@@ -58,6 +198,8 @@ function tripal_load_entity($entity_type, $ids = FALSE, $reset = FALSE,
  *
  * @return
  *   A TripalTerm entity object or NULL if not found.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_load_term_entity($values) {
   $vocabulary = array_key_exists('vocabulary', $values) ? $values['vocabulary'] : '';
@@ -98,6 +240,8 @@ function tripal_load_term_entity($values) {
  *
  * @return
  * A TripalVocab entity object or NULL if not found.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_load_vocab_entity($values) {
   $vocabulary = array_key_exists('vocabulary', $values) ? $values['vocabulary'] : '';
@@ -134,6 +278,8 @@ function tripal_load_vocab_entity($values) {
  *
  * @return
  *   A TripalBundle entity object or NULL if not found.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_load_bundle_entity($values) {
 
@@ -160,47 +306,6 @@ function tripal_load_bundle_entity($values) {
   return NULL;
 }
 
-
-/**
- * Allows a module to perform tasks before a TripalBundle object is deleted.
- *
- * @param $bundle
- *   The newly created TripalBundle object.
- */
-function hook_bundle_delete($bundle) {
-
-}
-/**
- * Allows a module to perform tasks after a TripalBundle object is created.
- *
- * @param $bundle
- *   The newly created TripalBundle object.
- * @param $storage_args
- *   Arguments passed to the storage backend for this bundle.  These arguments
- *   typically provide details for how to associate this bundle with records
- *   in the storage system.  Each storage system will have its own set of
- *   arguments that it will expect.
- */
-function hook_bundle_create(&$bundle, $storage_args) {
-
-}
-/**
- * Allows a module to perform tasks after fields are added to a TripalBundle.
- *
- * @param $bundle
- *   The newly created TripalBundle object.
- */
-function hook_bundle_postcreate(&$bundle) {
-
-}
-/**
- * Allows a module to add admin notifications to the associated tripal table
- * during the cron run.
- *
- */
-function hook_tripal_cron_notification() {
-
-}
 /**
  * Allows a module to write to the admin notification table
  * during the cron run.
@@ -217,8 +322,10 @@ function hook_tripal_cron_notification() {
  *   If not type is required please pass NULL.
  * @param $submitter_id
  *   A unique ID provided by the submitter for checking to make sure that the notification is not added more than once.
+ *
+ * @ingroup tripal_entities_api
  */
-function tripal_add_notifcation($title, $details, $type, $actions, $submitter_id) {
+function tripal_add_notification($title, $details, $type, $actions, $submitter_id) {
   $transaction = db_transaction();
 
   // Check the notification isn't already in the admin notification table.
@@ -242,9 +349,6 @@ function tripal_add_notifcation($title, $details, $type, $actions, $submitter_id
       $transaction->rollback();
       watchdog('tripal_cron', 'Could not write notification to database.');
     }
-    if ($success) {
-      watchdog('tripal_cron', 'New field notification created.');
-    }
   }
 }
 /**
@@ -262,8 +366,11 @@ function tripal_add_notifcation($title, $details, $type, $actions, $submitter_id
  * @param $error
  *  A string, passed by reference, that is filled with the error message
  *  if the function fails.
+ *
  * @return
  *   The bundle object or FALSE if failure.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_create_bundle($args, &$error = '') {
   $vocabulary = $args['vocabulary'];
@@ -394,6 +501,8 @@ function tripal_entity_permissions($entity) {
  * @return
  *   An array of bundles. Each bundle is an object containing information
  *   about that bundle.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_content_types() {
   return db_select('tripal_bundle', 'tb')
@@ -407,6 +516,8 @@ function tripal_get_content_types() {
  *
  * @param $bundle_name
  *   The name of the bundle to refresh (e.g. bio_data_4).
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_tripal_cron_notification() {
   $num_created = 0;
@@ -444,7 +555,7 @@ function tripal_tripal_cron_notification() {
         $type = 'Field';
         $submitter_id = $details['field_name'] . '-' . $bundle_name->name . '-' . $module;
 
-        tripal_add_notifcation($title, $detail_info, $type, $actions, $submitter_id);
+        tripal_add_notification($title, $detail_info, $type, $actions, $submitter_id);
         $num_created++;
       }
     }
@@ -471,12 +582,9 @@ function tripal_tripal_cron_notification() {
         $type = 'Field';
         $submitter_id = $details['field_name'] . '-' . $bundle_name->name . '-' . $module;
 
-        tripal_add_notifcation($title, $detail_info, $type, $actions, $submitter_id);
+        tripal_add_notification($title, $detail_info, $type, $actions, $submitter_id);
         $num_created++;
       }
-    }
-    if ($num_created == 0) {
-      watchdog('tripal_cron', '<pre>No new fields for '. print_r($bundle_name->name, TRUE) .'</pre>');
     }
   }
 }
@@ -489,6 +597,8 @@ function tripal_tripal_cron_notification() {
  *
  * @return
  *   An object containing information about the bundle.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_content_type($bundle_name) {
   return db_select('tripal_bundle', 'tb')
@@ -506,6 +616,8 @@ function tripal_get_content_type($bundle_name) {
  *
  * @return
  *   The array of field instance names that were added.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_create_bundle_fields($bundle, $term) {
 
@@ -613,6 +725,7 @@ function tripal_create_bundle_fields($bundle, $term) {
  * TODO: this function really shouldn't try to create an instance and
  * attach to a bundle  at the same time.
  *
+ * @ingroup tripal_entities_api
  */
 function tripal_update_bundle_field($field_name, $field_info, $entity_type_name, $bundle_name) {
 
@@ -674,19 +787,6 @@ function tripal_update_bundle_field($field_name, $field_info, $entity_type_name,
   field_update_instance($field_instance);
 }
 
-/**
- * Allows a module to make changes to an entity object after creation.
- *
- * This function is added by Tripal to allow datastore backends to add
- * addition properties to the entity that they themselves will use later.
- *
- * @param $entity
- * @param $entity_type
- */
-function hook_entity_create(&$entity, $entity_type) {
-
-}
-
 
 /**
  * @section
@@ -702,6 +802,8 @@ function hook_entity_create(&$entity, $entity_type) {
  *   The unique identfier for the bundle you want the value for.
  * @return text
  *   The value of the specified variable for the specified bundle.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_bundle_variable($variable_name, $bundle_id, $default = FALSE) {
 
@@ -737,6 +839,8 @@ function tripal_get_bundle_variable($variable_name, $bundle_id, $default = FALSE
  *   The unique identfier for the bundle you want the value for.
  * @param $text $value
  *   The value of the variable for the given bundle.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_set_bundle_variable($variable_name, $bundle_id, $value) {
   $variable = tripal_get_variable($variable_name);
@@ -792,6 +896,8 @@ function tripal_set_bundle_variable($variable_name, $bundle_id, $value) {
  *
  * @param TripalBundle $bundle
  *   The Entity object for the Tripal Bundle the title format is for.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_title_format($bundle) {
 
@@ -815,6 +921,8 @@ function tripal_get_title_format($bundle) {
  *   The Entity object for the Tripal Bundle the title format is for.
  * @param string $format
  *   The pattern to be used when generating entity titles for the above type.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_save_title_format($entity, $format) {
 
@@ -829,6 +937,8 @@ function tripal_save_title_format($entity, $format) {
  *
  * @return string
  *   A default title format.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_default_title_format($bundle) {
   $format = '';
@@ -869,62 +979,6 @@ function tripal_get_default_title_format($bundle) {
   return $format;
 }
 
-/**
- * Implement this hook to define default formats for Tripal Content Types.
- *
- * @param TripalBundle $bundle
- *   A tripal content type entity with information to be used for determining the default title format.
- * @param array $available_tokens
- *   An array of available tokens for this particular tripal content type.
- *
- * @return array
- *   An array of potential formats. The lightest weighted format suggested by all modules will be chosen.
- *   Each array item should consist of a 'weight' and 'format'. See the hook implementation below
- *   for examples.
- *    - weight: an integer used to determine priority of suggestions.
- *        The smaller/lighter the number the higher the priority.
- *        Best practice is to use a weight less than 0 for extension modules.
- *        specifically, -2 is a good weight for calculated formats and -5 is a
- *        good weight for hard-coded formats specific to a given type.
- *    - format: a string including approved tokens used to determine the title
- *        on Tripal content pages.
- */
-function hook_tripal_default_title_format($bundle, $available_tokens) {
-  $format = array();
-
-  // If you want to suggest a default format for a particular vocabulary term:
-  //---------------------------------------------------------------------------
-  // Load the term associated with this Tripal Content type.
-  $term = entity_load('TripalTerm', array('id' => $bundle->term_id));
-  $term = reset($term);
-
-  // If it's the term you are interested in then suggest a format.
-  if ($term->name == 'organism') {
-
-    // To suggest a format, add an element to the array with a format & weight key.
-    $format[] = array(
-      // This is the format/pattern you suggest be used to determine the title of organism pages.
-      'format' => '[organism__genus] [organism__species]',
-      // The weight/priority of your suggestion.
-      'weight' => -5
-    );
-
-  }
-
-  // Say you know that in your particular site, all 'names' are required
-  // and you want to only use the human-readable name:
-  //---------------------------------------------------------------------------
-  $name_field = preg_grep('/__name]$/', array_keys($available_tokens));
-  $name_field = reset($name_field);
-  if (is_string($name_field)) {
-    $format[] = array(
-      'format' => $name_field,
-      'weight' => -2,
-    );
-  }
-
-  return $format;
-}
 
 /**
  * Returns an array of tokens based on Tripal Entity Fields.
@@ -933,6 +987,8 @@ function hook_tripal_default_title_format($bundle, $available_tokens) {
  *    The bundle entity for which you want tokens.
  * @return
  *    An array of tokens where the key is the machine_name of the token.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_get_entity_tokens($entity, $options = array()) {
   $tokens = array();
@@ -1002,6 +1058,8 @@ function tripal_get_entity_tokens($entity, $options = array()) {
  *
  * @return
  *   The string will all tokens replaced with values.
+ *
+ * @ingroup tripal_entities_api
  */
 function tripal_replace_entity_tokens($string, &$entity, $bundle_entity = NULL) {
   // Determine which tokens were used in the format string
@@ -1054,7 +1112,7 @@ function tripal_replace_entity_tokens($string, &$entity, $bundle_entity = NULL) 
 
     if (property_exists($entity, $field_name)) {
       // Note: there is a memory leak in field_get_items() so we can't use it
-      // here or bulk publising will slowly erode memory.
+      // here or bulk publishing will slowly erode memory.
       //$field_value = field_get_items('TripalEntity', $entity, $field_name);
       if (array_key_exists(0, $entity->{$field_name}['und'])) {
         $value = $entity->{$field_name}['und'][0]['value'];
@@ -1097,6 +1155,8 @@ function tripal_replace_entity_tokens($string, &$entity, $bundle_entity = NULL) 
  *   A list of tokens generated via tripal_get_entity_tokens().
  * @return
  *   Rendered output describing the available tokens.
+ *
+ * @ingroup tripal_entities_api
  */
 function theme_token_list($tokens) {
 
@@ -1113,4 +1173,207 @@ function theme_token_list($tokens) {
   return theme('table', array('header' => $header, 'rows' => $rows));
 }
 
+/**
+ * Define the entity label callback.  This will return the title.
+ *
+ * @param $entity
+ *
+ * @return mixed
+ *
+ * @ingroup tripal_entities_api
+ */
+function tripal_entity_label($entity) {
+  if (property_exists($entity, 'title')) {
+    return $entity->title;
+  }
+  return NULL;
+}
 
+/**
+ *
+ * @param $bundle_name
+ *
+ * @ingroup tripal_entities_api
+ */
+function tripal_get_bundle_details($bundle_name) {
+  global $user;
+
+  $bundle = tripal_load_bundle_entity(array('name' => $bundle_name));
+  $term = tripal_load_term_entity(array('term_id' => $bundle->term_id));
+  $vocab = $term->vocab;
+  $instances = field_info_instances('TripalEntity', $bundle->name);
+
+  $details = array(
+    'name' => $bundle->name,
+    'label' => $bundle->label,
+    'term' => array(
+      'accession' => $vocab->vocabulary . ':' . $term->accession,
+      'name' => $term->name,
+      'definition' => $term->definition,
+      'url' => $term->url
+    ),
+    'fields' => array(),
+  );
+
+  // Iterate through each feild and provide a discription of it and
+  // it's sub elements.
+  foreach ($instances as $instance) {
+    // Skip deleted fields.
+    if ($instance['deleted']) {
+      continue;
+    }
+
+    $field_name = $instance['field_name'];
+    $field = field_info_field($field_name);
+
+    $field_class = $field['type'];
+    $term_vocab = $instance['settings']['term_vocabulary'];
+    $term_accession = $instance['settings']['term_accession'];
+    $field_term = tripal_get_term_details($term_vocab, $term_accession);
+    $field_details = array(
+      'name' => $field_name,
+      'label' => $instance['label'],
+      'term' => array(
+        'accession' => $term_vocab . ":" . $term_accession,
+        'name' => $field_term['name'],
+        'definition' => $field_term['definition'],
+        'url' => $field_term['url'],
+      ),
+      // These items can be overridden by the element_info array that
+      // is present in a TripalField instance.  Here we set defaults.
+      'required' => $instance['required'] ? TRUE : FALSE,
+      'type' => 'xs:string',
+      'readonly' => TRUE,
+      // The cardinatlity value always comes from the field.
+      'cardinality' => $field['cardinality'],
+    );
+
+    if (tripal_load_include_field_class($field_class)) {
+      $field_obj = new $field_class($field, $instance);
+      $element_info = $field_obj->elementInfo();
+      $element_info = $element_info[$term_vocab . ':' . $term_accession];
+
+      // If the element info for this field sets required, type and readonly
+      // attributes then set those.
+      $field_details['required'] = array_key_exists('required', $element_info) ? $element_info['required'] : FALSE;
+      $field_details['type'] = array_key_exists('type', $element_info) ? $element_info['type'] : 'xs:string';
+      $field_details['readonly'] = array_key_exists('readonly', $element_info) ? $element_info['readonly'] : TRUE;
+      $field_details['label'] = array_key_exists('label', $element_info) ? $element_info['label'] : $field_details['label'];
+      $field_details['help'] = array_key_exists('help', $element_info) ? $element_info['help'] : '';
+
+      // If this field is an 'xs:complexType' then it will have sub elements.
+      // we need to add those as well.
+      if (array_key_exists('elements', $element_info) and is_array($element_info['elements'])) {
+        _tripal_get_bundle_field_element_details($element_info['elements'], $field_details);
+      }
+      $details['fields'][] = $field_details;
+    }
+
+  }
+  return $details;
+}
+/**
+ * A recursive helper function for the tripal_get_bundle_details.
+ *
+ * @param $elementInfo
+ *
+ * @ingroup tripal_entities_api
+ */
+function _tripal_get_bundle_field_element_details($elements, &$field_details) {
+   $field_details['elements'] = array();
+   foreach ($elements as $element_key => $element_info) {
+     // Handle the entity element differnetly.
+     if ($element_key == 'entity') {
+       continue;
+     }
+     list($term_vocab, $term_accession) = explode(':', $element_key);
+     $term = tripal_get_term_details($term_vocab, $term_accession);
+
+     $element_details = array(
+       'name' => $element_info['name'],
+       'label' => array_key_exists('label', $element_info) ? $element_info['label'] : ucfirst(preg_replace('/_/', ' ', $term['name'])),
+       'help' => array_key_exists('help', $element_info) ? $element_info['help'] : '',
+       'term' => array(
+         'accession' => $term_vocab . ':' . $term_accession,
+         'name' => $term['name'],
+         'definition' => $term['definition'],
+         'url' => $term['url'],
+       ),
+       'required' => array_key_exists('required', $element_info) ? $element_info['required'] : FALSE,
+       'type' => array_key_exists('type', $element_info) ? $element_info['type'] : 'xs:string',
+       'readonly' => array_key_exists('readonly', $element_info) ? $element_info['readonly'] : TRUE,
+     );
+     if (array_key_exists('elements', $element_info) and is_array($element_info['elements'])) {
+       _tripal_get_bundle_field_element_details($element_info['elements'], $element_details);
+     }
+     $field_details['elements'][] = $element_details;
+   }
+}
+
+/**
+ *
+ * @param unknown $bundle_name
+ * @param unknown $values
+ *
+ * @throws Exception
+ *
+ * @ingroup tripal_entities_api
+ */
+function tripal_insert_entity($bundle_name, $values){
+  global $user;
+
+  $bundle = tripal_load_bundle_entity(array('name' => $bundle_name));
+
+  // Get the fields associated with this content type.
+  $instances = field_info_instances('TripalEntity', $bundle->name);
+
+  foreach ($instances as $instance) {
+    $field_name = $instance['field_name'];
+    $field = field_info_field($field_name);
+    $field_type = $field['type'];
+    $field_settings = $field['settings'];
+    $instance_settings = $instance['settings'];
+    $field_name = $field['field_name'];
+    $vocabulary = $instance['settings']['term_vocabulary'];
+    $accession = $instance['settings']['term_accession'];
+    $field_accession = $vocabulary . ':' . $accession;
+    $field_term = tripal_get_term_details($vocabulary, $accession);
+    $field_key = $field_term['name'];
+    $field_key = strtolower(preg_replace('/ /', '_', $key));
+
+    // There are three ways that a field value can be specified. Those
+    // are as the controlled vocabulary accession (e.g. GO:0000134), sa
+    // the field name or as the field key which is the term name with
+    // spaces replaced with underscores.
+    // First make sure that required fields are present.
+    if ($instance['required'] == TRUE) {
+      if (!array_key_exists($field_key, $values) and
+          !array_key_exists($field_accession, $values) and
+          !array_key_exists($field_name, $values)) {
+        throw new Exception(t('Cannot insert the record. Missing the required field "%missing".',
+          array('%missing' => $field_name)));
+      }
+    }
+  }
+
+  // Make sure that all required fields are presnet
+
+  // TODO: make sure the user has permission to do this.
+  $ec = entity_get_controller('TripalEntity');
+  $entity = $ec->create(array(
+    'bundle' => $bundle_name,
+    'term_id' => $bundle->term_id,
+  ));
+  $entity = $entity->save();
+}
+
+/**
+ * @param $bundle_name
+ * @param $values
+ *
+ * @ingroup tripal_entities_api
+ */
+function tripal_update_entity($bundle_name, $values) {
+
+
+}

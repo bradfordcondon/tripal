@@ -33,6 +33,7 @@ function tripal_chado_populate_chado_semweb_table() {
   tripal_chado_populate_vocab_RDFS();
   tripal_chado_populate_vocab_SBO();
   tripal_chado_populate_vocab_SCHEMA();
+  tripal_chado_populate_vocab_SEP();
   tripal_chado_populate_vocab_SIO();
   tripal_chado_populate_vocab_SO();
   tripal_chado_populate_vocab_SWO();
@@ -64,11 +65,13 @@ function tripal_chado_populate_vocab_FOAF() {
  */
 function tripal_chado_populate_vocab_HYDRA() {
 
+  // For the HydraConsole to work with webservices the URL must be set as
+  // http://www.w3.org/ns/hydra/core
   tripal_insert_db(array(
     'name' => 'hydra',
     'description' => 'A Vocabulary for Hypermedia-Driven Web APIs',
-    'url' => 'https://www.hydra-cg.com/spec/latest/core/',
-    'urlprefix' => 'https://www.hydra-cg.com/spec/latest/core/#{db}:{accession}',
+    'url' => 'http://www.w3.org/ns/hydra/core',
+    'urlprefix' => 'http://www.w3.org/ns/hydra/core#{accession}',
   ));
   tripal_insert_cv(
     'hydra',
@@ -116,11 +119,23 @@ function tripal_chado_populate_vocab_HYDRA() {
  * Adds the RDFS database and terms.
  */
 function tripal_chado_populate_vocab_RDFS() {
+
+  tripal_insert_db(array(
+    'name' => 'rdf',
+    'description' => 'Resource Description Framework',
+    'url' => 'http://www.w3.org/1999/02/22-rdf-syntax-ns',
+    'urlprefix' => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+  ));
+  tripal_insert_cv(
+    'rdf',
+    'Resource Description Framework'
+  );
+
   tripal_insert_db(array(
     'name' => 'rdfs',
     'description' => 'Resource Description Framework Schema',
     'url' => 'https://www.w3.org/TR/rdf-schema/',
-    'urlprefix' => 'https://www.w3.org/TR/rdf-schema/#ch_{accession}',
+    'urlprefix' => 'http://www.w3.org/2000/01/rdf-schema#{accession}',
   ));
   tripal_insert_cv(
     'rdfs',
@@ -237,6 +252,24 @@ function tripal_chado_populate_vocab_SCHEMA() {
   ));
 }
 
+/**
+ * Adds the Sample processing and separation techniques database and terms.
+ */
+function tripal_chado_populate_vocab_SEP() {
+  tripal_insert_db(array(
+    'name' => 'sep',
+    'description' => 'Sample processing and separation techniques.',
+    'url' => 'http://psidev.info/index.php?q=node/312',
+    'urlprefix' => 'http://purl.obolibrary.org/obo/{db}_{accession}',
+  ));
+  tripal_insert_cv('sep','A structured controlled vocabulary for the annotation of sample processing and separation techniques in scientific experiments.');
+  $term = tripal_insert_cvterm(array(
+    'id' => 'sep:00195',
+    'name' => 'biological sample',
+    'cv_name' => 'sep',
+    'definition' => 'A biological sample analysed by a particular technology.',
+  ));
+}
 /**
  * Adds the SemanticScience database and terms.
  */
@@ -524,6 +557,40 @@ function tripal_chado_populate_vocab_EDAM() {
     'display in a genome browser. Synonym: Sequence annotation track.',
   ));
   tripal_associate_chado_semweb_term('featureloc', 'srcfeature_id', $term);
+
+  $term = tripal_insert_cvterm(array(
+    'id' => 'operation:2945',
+    'name' => 'Analysis',
+    'cv_name' => 'EDAM',
+    'definition' => 'Apply analytical methods to existing data of a specific type.',
+  ));
+  tripal_associate_chado_semweb_term('phylotree', 'analysis_id', $term);
+
+  $term = tripal_insert_cvterm(array(
+    'id' => 'data:0872',
+    'name' => 'Phylogenetic tree',
+    'cv_name' => 'EDAM',
+    'definition' => 'The raw data (not just an image) from which a phylogenetic tree is directly generated or plotted, such as topology, lengths (in time or in expected amounts of variance) and a confidence interval for each length.',
+  ));
+  $term = tripal_insert_cvterm(array(
+    'id' => 'data:3272',
+    'name' => 'Species tree',
+    'cv_name' => 'EDAM',
+    'definition' => 'A phylogenetic tree that reflects phylogeny of the taxa from which the characters (used in calculating the tree) were sampled.',
+  ));
+  $term = tripal_insert_cvterm(array(
+    'id' => 'data:3271',
+    'name' => 'Gene tree',
+    'cv_name' => 'EDAM',
+    'definition' => 'A phylogenetic tree that is an estimate of the character\'s phylogeny.',
+  ));
+  $term = tripal_insert_cvterm(array(
+    'id' => 'operation:0567',
+    'name' => 'Phylogenetic tree visualisation',
+    'cv_name' => 'EDAM',
+    'definition' => 'A phylogenetic tree that is an estimate of the character\'s phylogeny.',
+  ));
+
 }
 
 /**
@@ -1017,6 +1084,7 @@ function tripal_chado_populate_vocab_LOCAL() {
   ));
 
   // Add the terms used to identify nodes in the tree.
+  // DEPRECATED: use EDAM's data 'Species tree' term instead.
   tripal_insert_cvterm(array(
     'name' => 'taxonomy',
     'definition' => 'A term used to indicate if a phylotree is a taxonomic tree',
@@ -1024,7 +1092,6 @@ function tripal_chado_populate_vocab_LOCAL() {
     'is_relationship' => 0,
     'db_name' => 'local'
   ));
-
 
   //--------------
   // Project Terms
@@ -1421,11 +1488,10 @@ function tripal_chado_populate_vocab_SWO() {
   tripal_insert_db(array(
     'name' => 'SWO',
     'description' => 'Software Ontology',
-    'url' => 'http://theswo.sourceforge.net/',
-    'urlprefix' => '',
+    'url' => 'http://purl.obolibrary.org/obo/swo',
+    'urlprefix' => 'http://www.ebi.ac.uk/swo/',
   ));
-  tripal_insert_cv('swo','Software Ontology. An ontology representation of the NCBI organismal taxonomy.');
-
+  tripal_insert_cv('swo','Software Ontology.');
 
   $term = tripal_insert_cvterm(array(
     'id' => 'SWO:0000001',
@@ -1439,26 +1505,19 @@ function tripal_chado_populate_vocab_SWO() {
       'specific operations.',
   ));
   tripal_associate_chado_semweb_term('analysis', 'program', $term);
-
-  $term = tripal_insert_cvterm(array(
-    'id' => 'SWO:0000001',
-    'name' => 'software',
-    'cv_name' => 'swo',
-    'definition' => 'Computer software, or generally just software, is any ' .
-    'set of machine-readable instructions (most often in the form of a ' .
-    'computer program) that conform to a given syntax (sometimes ' .
-    'referred to as a language) that is interpretable by a given ' .
-    'processor and that directs a computer\'s processor to perform ' .
-    'specific operations.',
-  ));
-  tripal_associate_chado_semweb_term('analysis', 'program', $term);
-
 }
 
 /**
  * Adds the contact table mapping.
  */
 function tripal_chado_populate_vocab_TCONTACT() {
+  tripal_insert_db(array(
+    'name' => 'TContact',
+    'description' => 'Tripal Contact Ontology. A temporary ontology until a more formal appropriate ontology an be identified.',
+    'url' => 'cv/lookup/TContact',
+    'urlprefix' => 'cv/lookup/TContact/{accession}',
+  ));
+  tripal_insert_cv('tripal_contact', 'Tripal Contact Ontology. A temporary ontology until a more formal appropriate ontology an be identified.');
 }
 
 /**
@@ -1466,7 +1525,13 @@ function tripal_chado_populate_vocab_TCONTACT() {
  */
 function tripal_chado_populate_vocab_TPUB() {
 
-  // No need to insert the TPUB cv/db those should already be added.
+  tripal_insert_db(array(
+    'name' => 'TPUB',
+    'description' => 'Tripal Publiation Ontology. A temporary ontology until a more formal appropriate ontology an be identified.',
+    'url' => 'cv/lookup/TPUB',
+    'urlprefix' => 'cv/lookup/TPUB/{accession}',
+  ));
+  tripal_insert_cv('tripal_pub', 'Tripal Publiation Ontology. A temporary ontology until a more formal appropriate ontology an be identified.');
 
   // make sure we have our supported databases
   tripal_insert_db(

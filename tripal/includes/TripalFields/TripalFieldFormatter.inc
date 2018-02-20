@@ -1,14 +1,21 @@
 <?php
 
 class TripalFieldFormatter {
-  // The default lable for this field.
+  /**
+   * The default lable for this field.
+   */
   public static $default_label = 'Tripal Field.';
 
-  // The list of field types for which this formatter is appropriate.
+  /**
+   * The list of field types for which this formatter is appropriate.
+   */
   public static $field_types = array();
 
-  // The list of default settings for this formatter.
+  /**
+   *  The list of default settings for this formatter.
+   */
   public static $default_settings = array();
+
 
   /**
    * Instantiates a new TripalFieldFormatter object.
@@ -46,6 +53,7 @@ class TripalFieldFormatter {
       'label' => $class::$default_label,
       'field types' => $class::$field_types,
       'settings' => $class::$default_settings,
+      'TripalFieldFormatter' => TRUE,
     );
   }
 
@@ -91,23 +99,31 @@ class TripalFieldFormatter {
    * This function corresponds to the hook_field_formatter_view()
    * function of the Drupal Field API.
    *
-   *  This function provides the display for a field when it is viewed on
-   *  the web page.  The content returned by the formatter should only include
-   *  what is present in the $items[$delta]['values] array. This way, the
-   *  contents that are displayed on the page, via webservices and downloaded
-   *  into a CSV file will always be identical.  The view need not show all
-   *  of the data in the 'values' array.
+   * This function provides the display for a field when it is viewed on
+   * as a full page, teaser, indexing for searching, etc.  The content
+   * returned by the formatter should only include what is present in the
+   * $items[$delta]['values] array. This way, the contents that are displayed
+   * on the page, via web services and downloaded into a CSV file will
+   * always be identical.  The view need not show all of the data in the
+   * 'values' array.
    *
-   *  @param $element
-   *  @param $entity_type
-   *  @param $entity
-   *  @param $langcode
-   *  @param $items
-   *  @param $display
-   *
-   *  @return
-   *    An element array compatible with that returned by the
-   *    hook_field_formatter_view() function.
+   * @param $element
+   *   A renderable array for the $items, as an array of child elements keyed
+   *   by numeric indexes starting from 0.  When implemented as a child
+   *   class, this argument is set for the display.
+   * @param $entity_type
+   *   The type of $entity.
+   * @param $entity
+   *   The entity object.
+   * @param $langcode
+   *   The language associated with $items.
+   * @param $items
+   *   Array of values for this field.
+   * @param $display
+   *   The display settings to use, as found in the 'display' entry of instance
+   *   definitions. The array notably contains the following keys and values;
+   *     - type: The name of the formatter to use.
+   *     - settings: The array of formatter settings.
    */
   public function view(&$element, $entity_type, $entity, $langcode, $items, $display) {
 

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @defgroup tripal_chado_schema_api Chado Schema API
+ * @defgroup tripal_chado_schema_api Chado Schema
  * @ingroup tripal_chado_api
  * @{
  * Provides an application programming interface (API) for describing Chado tables.
@@ -41,9 +41,19 @@
  */
 function chado_table_exists($table) {
 
+  // Get the default database and chado schema.
   global $databases;
-
   $default_db = $databases['default']['default']['database'];
+  $chado_schema = tripal_get_schema_name('chado');
+
+  // If we've already lookup up this table then don't do it again, as
+  // we don't need to keep querying the database for the same tables.
+  if (array_key_exists("chado_tables", $GLOBALS) and
+      array_key_exists($default_db, $GLOBALS["chado_tables"]) and
+      array_key_exists($chado_schema, $GLOBALS["chado_tables"][$default_db]) and
+      array_key_exists($table, $GLOBALS["chado_tables"][$default_db][$chado_schema])) {
+    return TRUE;
+  }
 
   $sql = "
     SELECT 1
@@ -55,7 +65,7 @@ function chado_table_exists($table) {
   ";
   $args = array(
     ':table_name' => $table,
-    ':chado' => tripal_get_schema_name('chado'),
+    ':chado' => $chado_schema,
     ':default_db' => $default_db
   );
   $results = db_query($sql, $args);
@@ -63,6 +73,9 @@ function chado_table_exists($table) {
   if (!$exists) {
     return FALSE;
   }
+
+  // Set this table in the GLOBALS so we don't query for it again the next time.
+  $GLOBALS["chado_tables"][$default_db][$chado_schema][$table] = TRUE;
   return TRUE;
 }
 /**
@@ -87,12 +100,15 @@ function chado_column_exists($table, $column) {
 
   $default_db = $databases['default']['default']['database'];
   $cached_obj = cache_get('chado_table_columns', 'cache');
-  $cached_cols = $cached_obj->data;
-  if (is_array($cached_cols) and
-      array_key_exists($table, $cached_cols) and
-      array_key_Exists($column, $cached_cols[$table])) {
-    return $cached_cols[$table][$column]['exists'];
+  if ($cached_obj) {
+      $cached_cols = $cached_obj->data;
+      if (is_array($cached_cols) and
+          array_key_exists($table, $cached_cols) and
+          array_key_Exists($column, $cached_cols[$table])) {
+        return $cached_cols[$table][$column]['exists'];
+      }
   }
+
   $sql = "
     SELECT 1
     FROM information_schema.columns
@@ -259,8 +275,15 @@ function chado_dbschema_exists($schema) {
  */
 function chado_is_local() {
 
+  // If the is_local variable has been set then we've already checked if
+  // Chado is local and we don't need to repeat it again.
+  if (isset($GLOBALS["chado_is_local"])) {
+    return $GLOBALS["chado_is_local"];
+  }
+
   // This is postgresql-specific code to check the existence of the chado schema
-  // @coder-ignore: acting on pg_catalog schema rather then drupal schema therefore, table prefixing does not apply
+  // @coder-ignore: acting on pg_catalog schema rather then drupal schema
+  // therefore, table prefixing does not apply
   $sql = "
     SELECT nspname
     FROM pg_namespace
@@ -327,13 +350,14 @@ function chado_get_version($exact = FALSE, $warn_if_unsupported = FALSE) {
 
   global $databases;
   $version = '';
-  $is_local = 0;
+  $is_local = FALSE;
+  $chado_exists = FALSE;
 
-  // check that Chado is installed if not return 'uninstalled as the version'
-  $chado_exists = chado_is_local();
-  if (!$chado_exists) {
-    // if it's not in the drupal database check to see if it's specified in the $db_url
-    // in the settings.php
+  // Check that Chado is installed if not return 'uninstalled as the version'
+  $is_local = isset($GLOBALS["chado_is_local"]) && $GLOBALS["chado_is_local"];
+  if (!$is_local) {
+    // If it's not in the drupal database check to see if it's specified in
+    // the $db_url in the settings.php
     if (!array_key_exists(tripal_get_schema_name('chado'), $databases)) {
       // if it's not in the drupal database or specified in the $db_url then
       // return uninstalled as the version
@@ -345,7 +369,7 @@ function chado_get_version($exact = FALSE, $warn_if_unsupported = FALSE) {
     chado_set_active($previous_db);
   }
   else {
-    $is_local = 1;
+    $chado_exists = TRUE;
     // @todo we need a chado aware db_table_exists.
     $prop_exists = db_table_exists(tripal_get_schema_name('chado') . '.chadoprop');
   }
@@ -557,7 +581,7 @@ function chado_get_base_tables() {
 
   // Initialize the base tables with those tables that are missing a type.
   // Ideally they should have a type, but that's for a future version of Chado.
-  $base_tables = array('organism', 'project', 'analysis', 'biomaterial');
+  $base_tables = array('organism', 'project', 'analysis', 'biomaterial', 'eimage');
 
   // We'll use the cvterm table to guide which tables are base tables. Typically
   // base tables (with a few exceptions) all have a type.  Iterate through the

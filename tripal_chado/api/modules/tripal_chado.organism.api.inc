@@ -5,10 +5,9 @@
  */
 
 /**
- * @defgroup tripal_organism_api Organism API
- * @ingroup tripal_api
+ * @defgroup tripal_organism_api Chado Organism
+ * @ingroup tripal_chado_api
  * @{
- * Provides an application programming interface (API) to manage organisms
  * @}
  */
 
@@ -127,6 +126,46 @@ function tripal_get_organism($identifiers, $options = array()) {
 }
 
 /**
+ * Returns the full scientific name of an organism.
+ *
+ * @param $organism
+ *   An organism object.
+ * @return
+ *   The full scientific name of the organism.
+ *
+ * @ingroup tripal_organism_api
+ */
+function tripal_get_organism_scientific_name($organism) {
+  $name = $organism->genus . ' ' . $organism->species;
+
+  // For Chado v1.3 we have a type_id and infraspecific name.
+  if (property_exists($organism, 'type_id')) {
+    $rank = '';
+    // For organism objects crated using chado_generate_var
+    if (is_object($organism->type_id)) {
+      if ($organism->type_id) {
+        $rank = $orgasnism->type_id->name;
+      }
+    }
+    else {
+      $rank_term = tripal_get_cvterm(array('cvterm_id' => $organism->type_id));
+      if ($rank_term) {
+        $rank = $rank_term->name;
+      }
+    }
+
+    if ($rank) {
+      $rank = tripal_abbreviate_infraspecific_rank($rank);
+      $name .= ' ' . $rank . ' ' . $organism->infraspecific_name;
+    }
+    else if ($organism->infraspecific_name) {
+      $name .= ' ' . $organism->infraspecific_name;
+    }
+  }
+  return $name;
+}
+
+/**
  * Returns a list of organisms that are currently synced with Drupal to use in select lists
  *
  * @param $syncd_only
@@ -145,7 +184,7 @@ function tripal_get_organism_select_options($syncd_only = TRUE) {
   if ($syncd_only) {
     $sql = "
       SELECT *
-      FROM {chado_organism} CO
+      FROM [chado_organism] CO
         INNER JOIN {organism} O ON O.organism_id = CO.organism_id
       ORDER BY O.genus, O.species
     ";
@@ -178,6 +217,8 @@ function tripal_get_organism_select_options($syncd_only = TRUE) {
  * @return
  *   If the type parameter is 'url' (the default) then the fully qualified
  *   url to the image is returend. If no image is present then NULL is returned
+ *
+ * @ingroup tripal_organism_api
  */
 function tripal_get_organism_image_url($organism) {
   $url = '';
@@ -245,7 +286,7 @@ function tripal_autocomplete_organism($text) {
   $matches = array();
   $genus = $text;
   $species = '';
-  if (preg_match('/^(.*?) (.*)$/', $text, $matches)) {
+  if (preg_match('/^(.*?)\s+(.*)$/', $text, $matches)) {
     $genus = $matches[1];
     $species = $matches[2];
   }
@@ -261,8 +302,51 @@ function tripal_autocomplete_organism($text) {
   $results = chado_query($sql, $args);
   $items = array();
   foreach ($results as $organism) {
-    $name = $organism->genus . ' ' .$organism->species;
+    $name = tripal_get_organism_scientific_name($organism);
     $items["$name [id: $organism->organism_id]"] = $name;
   }
   drupal_json_output($items);
+}
+
+/**
+ * A handy function to abbreviate the infraspecific rank.
+ *
+ * @param $rank
+ *   The rank below species.
+ * @return
+ *   The proper abbreviation for the rank.
+ *
+ * @ingroup tripal_organism_api
+ */
+function tripal_abbreviate_infraspecific_rank($rank) {
+  $abb = '';
+  switch($rank) {
+    case 'no_rank':
+      $abb = '';
+      break;
+    case 'subspecies':
+      $abb = 'subsp.';
+      break;
+    case 'varietas':
+      $abb = 'var.';
+      break;
+    case 'variety':
+      $abb = 'var.';
+      break;
+    case 'subvarietas':
+      $abb = 'subvar.';
+      break;
+    case 'subvariety':
+      $abb = 'subvar.';
+      break;
+    case 'forma':
+      $abb = 'f.';
+      break;
+    case 'subforma':
+      $abb = 'subf.';
+      break;
+    default:
+      $abb = $rank;
+  }
+  return $abb;
 }

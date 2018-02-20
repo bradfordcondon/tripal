@@ -152,7 +152,7 @@ function tripal_chado_tripal_default_title_format($bundle, $available_tokens) {
     }
     else {
       $format[] = array(
-        'format' => '[taxrank__genus] [taxrank__species] [taxrank__infraspecies]',
+        'format' => '[taxrank__genus] [taxrank__species] [taxrank__infraspecific_taxon]',
         'weight' => -5
       );
     }
@@ -211,6 +211,18 @@ function tripal_chado_tripal_default_title_format($bundle, $available_tokens) {
       'weight' => -5,
     );
   }
+  if ($table == 'phylotree') {
+    $format[] = array(
+      'format' => '[schema__name]',
+      'weight' => -5,
+    );
+  }
+  if ($table == 'library') {
+    $format[] = array(
+      'format' => '[schema__name]',
+      'weight' => -5,
+    );
+  }
   return $format;
 }
 
@@ -237,7 +249,7 @@ function tripal_chado_entity_view($entity, $type, $view_mode, $langcode) {
       $enabled_templates = variable_get('tripal_chado_enabled_legacy_templates', array());
       $legacy_template = 'legacy_template--chado_' . $chado_table;
 
-      // If the site admin has indicated that thhis entity type should use
+      // If the site admin has indicated that this entity type should use
       // a legacy tmplate then prepare the entity and content to fake a
       // node.
       if (key_exists($legacy_template, $enabled_templates) && $enabled_templates[$legacy_template]) {

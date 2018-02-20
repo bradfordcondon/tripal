@@ -151,7 +151,7 @@ function tripal_chado_migrate_form($form, &$form_state) {
          ";
         $ana_count = chado_query($sql)->fetchField();
         if ($ana_count > 0) {
-          $key = urlencode('tv3_content_type--local--analysis--analysis');
+          $key  = urlencode('tv3_content_type--operation--2945--analysis');
           $form['step2']['step2_container']['tv3_content_type'][$key] = array(
             '#type' => 'checkbox',
             '#title' => 'Analysis (' . $ana_count . ')',
@@ -203,6 +203,22 @@ function tripal_chado_migrate_form($form, &$form_state) {
           $form['step2']['step2_container']['tv3_content_type'][$key] = array(
             '#type' => 'checkbox',
             '#title' => 'Publication (' . $proj_count . ')',
+          );
+          $no_data = FALSE;
+        }
+      }
+      else if ($table == 'biomaterial') {
+        $sql =
+        "SELECT count(*)
+           FROM {biomaterial} B
+           INNER JOIN [chado_biomaterial] CB ON B.biomaterial_id = CB.biomaterial_id
+          ";
+        $bm_count = chado_query($sql)->fetchField();
+        if ($bm_count > 0) {
+          $key = urlencode('tv3_content_type--sep--1095--biological sample');
+          $form['step2']['step2_container']['tv3_content_type'][$key] = array(
+            '#type' => 'checkbox',
+            '#title' => 'Biomaterial (' . $bm_count . ')',
           );
           $no_data = FALSE;
         }
@@ -628,9 +644,9 @@ function tripal_chado_migrate_map_types($tv2_content_types) {
     }
     else if ($table == 'analysis') {
       array_push($types, array(
-        'vocabulary' => 'local',
-        'accession' => 'analysis',
-        'term_name' => 'analysis',
+        'vocabulary' => 'operation',
+        'accession' => '2945',
+        'term_name' => 'Analysis',
         'storage_args' => array (
           'data_table' => $table
         )
@@ -661,6 +677,16 @@ function tripal_chado_migrate_map_types($tv2_content_types) {
       'vocabulary' => 'TPUB',
       'accession' => '0000002',
       'term_name' => 'Publication',
+      'storage_args' => array (
+        'data_table' => $table
+      )
+    ));
+  }
+  else if ($table == 'biomaterial') {
+    array_push($types, array(
+      'vocabulary' => 'sep',
+      'accession' => '1095',
+      'term_name' => 'biological sample',
       'storage_args' => array (
         'data_table' => $table
       )
@@ -744,7 +770,7 @@ function tripal_chado_delete_selected_types($tv2_content_types = array(), $job_i
   foreach ($tv2_content_types AS $type) {
     $sql = "DELETE FROM $type";
     db_query($sql);
-    chado_cleanup_orphaned_nodes(str_replace('chado_', '', $type), $job_id);
+    chado_cleanup_orphaned_nodes(str_replace('chado_', '', $type), 25000, NULL, NULL, $job_id);
   }
 }
 
@@ -823,7 +849,7 @@ function tripal_chado_migrate_url_alias_for_selected_types($tv2_content_types = 
  * Migrate images for all chado_organism
  *
  */
-function tripal_chado_migrate_organism_images () {
+function tripal_chado_migrate_organism_images ($bundle_name) {
   // Get all organism entities
   $bio_data_table = array_pop(tripal_chado_migrate_get_biodata_tables('organism'));
   $results =
@@ -876,13 +902,13 @@ function tripal_chado_migrate_organism_images () {
           }
         }
         if($file){
-          tripal_chado_migrate_organism_image_add_file($file->fid, $entity_id);
+            tripal_chado_migrate_organism_image_add_file($file->fid, $entity_id, $bundle_name);
         }
       }
     }
     else {
       // If there is an image, add it to the organism entity
-      tripal_chado_migrate_organism_image_add_file ($fid, $entity_id);
+        tripal_chado_migrate_organism_image_add_file ($fid, $entity_id, $bundle_name);
     }
 
   }
@@ -894,15 +920,16 @@ function tripal_chado_migrate_organism_images () {
  *
  * @param unknown $fid
  */
-function tripal_chado_migrate_organism_image_add_file ($fid, $entity_id) {
+function tripal_chado_migrate_organism_image_add_file ($fid, $entity_id, $bundle_name) {
   if ($fid && $entity_id) {
     $file = file_load($fid);
     // Add a record to the file_usage table
     file_usage_add($file, 'file', 'TripalEntity', $entity_id);
+    $image_file = (array) $file;
     // Attached it to the entity
+    /* 
     $entities = entity_load('TripalEntity', array($entity_id));
     $entity = $entities[$entity_id];
-    $image_file = (array) $file;
     $image = array(
       'und' => array(
         0 =>$image_file
@@ -911,8 +938,18 @@ function tripal_chado_migrate_organism_image_add_file ($fid, $entity_id) {
     $entity->data__image = $image;
     field_attach_update('TripalEntity', $entity);
     entity_get_controller('TripalEntity')->resetCache(array($entity_id));
+    */
     // Add a record to the field_data_data__image table
-
+    $values = array(
+        'entity_type' => 'TripalEntity',
+        'bundle' => $bundle_name,
+        'entity_id' => $entity_id,
+        'revision_id' => $entity_id,
+        'language' => 'und',
+        'delta' => 0,
+        'data__image_fid' => $fid,
+    );
+    drupal_write_record('field_data_data__image', $values);
   }
 }
 

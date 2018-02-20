@@ -3,47 +3,17 @@
  * @file
  * Provides functions for managing analysis'.
  *
- * @ingroup tripal_analysis
+ * @ingroup tripal_chado
  */
 
 /**
- * @defgroup tripal_analysis_api Analysis Module API
- * @ingroup tripal_api
+ * @defgroup tripal_analysis_api Chado Analysis
+ * @ingroup tripal_chado_api
  * @{
- * Provides an interface for specialized analysis modules to extend the basic functionality.
+
  * @}
  */
 
-/**
- * Register tripal_analysis_api sub-modules
- *
- * @param $modulename
- *  The name of the module to be registered as a tripal analysis submodule
- *
- * @ingroup tripal_analysis_api
- */
-function tripal_register_analysis_child($modulename) {
-  $sql = "SELECT * FROM {tripal_analysis} WHERE modulename = :modname";
-  if (!db_query($sql, array(':modname' => $modulename))->fetchField()) {
-    $sql = "INSERT INTO {tripal_analysis} (modulename) VALUES (:modname)";
-    db_query($sql, array(':modname' => $modulename));
-  }
-}
-
-/**
- * Un-register a tripal analysis sub-module
- *
- * @param $modulename
- *  The name of the module to un-register
- *
- * @ingroup tripal_analysis_api
- */
-function tripal_unregister_analysis_child($modulename) {
-  if (db_table_exists('tripal_analysis')) {
-      $sql = "DELETE FROM {tripal_analysis} WHERE modulename = :modname";
-      db_query($sql, array(':modname' => $modulename));
-  }
-}
 
 /**
  * Retrieves an chado analysis variable
@@ -178,7 +148,7 @@ function tripal_get_analysis_select_options($syncd_only = TRUE) {
         INNER JOIN {analysis} A ON A.analysis_id = CO.analysis_id
       ORDER BY A.name
     ";
-    $orgs = chado_query($sql);
+    $analyses = chado_query($sql);
 
     // iterate through the analyses and build an array of those that are synced
     foreach ($analyses as $analysis) {

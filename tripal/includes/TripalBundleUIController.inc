@@ -439,7 +439,7 @@ function tripal_tripal_bundle_form_submit($form, &$form_state) {
       $includes = array(
         module_load_include('inc', 'tripal', 'includes/tripal.bulk_update'),
       );
-      tripal_add_job('Update all aliases', 'tripal', 'tripal_update_all', $args,
+      tripal_add_job('Update all aliases', 'tripal', 'tripal_update_all_urls_and_titles', $args,
         $user->uid, 10, $includes);
     }
     elseif ($trigger == 'Bulk update all aliases'){
@@ -453,7 +453,7 @@ function tripal_tripal_bundle_form_submit($form, &$form_state) {
       $includes = array(
         module_load_include('inc', 'tripal', 'includes/tripal.bulk_update'),
       );
-      tripal_add_job('Update all aliases', 'tripal', 'tripal_update_all', $args,
+      tripal_add_job('Update all aliases', 'tripal', 'tripal_update_all_urls_and_titles', $args,
         $user->uid, 10, $includes);
     }
 
@@ -661,7 +661,7 @@ function tripal_admin_add_type_form_ajax_callback($form, $form_state) {
  */
 function tripal_admin_add_type_form_validate($form, &$form_state) {
   $stores = module_invoke_all('vocab_storage_info');
-  $store_select = $form_state['values']['store_select'];
+  $store_select = (isset($form_state['values']['store_select'])) ? $form_state['values']['store_select'] : NULL;
 
   if (array_key_exists('clicked_button', $form_state) and
       $form_state['clicked_button']['#name'] =='use_cvterm') {
@@ -768,6 +768,7 @@ function tripal_admin_add_type_form_submit($form, &$form_state) {
  * Checks access permissions for a given entity.
  */
 function tripal_admin_access($entity) {
+
   if ($entity) {
     $bundle_name = $entity->name;
   }
@@ -793,5 +794,6 @@ function tripal_admin_access($entity) {
   foreach($roles as $role => $value){
     user_role_change_permissions($role, $permission_for_role);
   }
+
   return TRUE;
 }

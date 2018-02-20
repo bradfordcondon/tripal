@@ -17,7 +17,7 @@ class TripalField {
   // The default description for this field.
   public static $default_description = 'The generic base class for all Tripal fields. Replace this text as appropriate for the child implementation.';
 
-  // Provide a list of global settings. These can be accessed witihn the
+  // Provide a list of global settings. These can be accessed within the
   // globalSettingsForm.  When the globalSettingsForm is submitted then
   // Drupal will automatically change these settings for all fields.
   // Once instances exist for a field type then these settings cannot be
@@ -50,11 +50,12 @@ class TripalField {
     // Set to TRUE if the site admin is not allowed to change the term
     // type, otherwise the admin can change the term mapped to a field.
     'term_fixed' => FALSE,
-    // Inidates if this field should be automatically attached to display
-    // or web services or if this field should be loaded separately. This
-    // is convenient for speed.  Fields that are slow should for loading
-    // should ahve auto_attach set to FALSE so tha their values can be
-    // attached asyncronously.
+    // Indicates the download formats for this field.  The list must be the
+    // name of a child class of the TripalFieldDownloader.
+    'download_formatters' => array(
+      'TripalTabDownloader',
+      'TripalCSVDownloader',
+    ),
   );
 
   // The default widget for this field.
@@ -77,6 +78,7 @@ class TripalField {
   // could be a quick search field that appears on the page that redirects
   // the user but otherwise provides no data.
   public static $no_data = FALSE;
+
 
   // --------------------------------------------------------------------------
   //              PROTECTED CLASS MEMBERS -- DO NOT OVERRIDE
@@ -107,7 +109,9 @@ class TripalField {
    *   An array containing the instance data as returned by field_instance_info().
    */
   public function __construct($field, $instance) {
-    $vocabulary = $term = NULL;
+    $term = NULL;
+    $vocabulary = NULL;
+    $accession = NULL;
     $this->field = $field;
     $this->instance = $instance;
 
@@ -470,7 +474,7 @@ class TripalField {
    *   An array of the following format:
    *     $entity->{$field_name}['und'][0]['value'] = $value;
    *   where:
-   *     - $entity is the enity object to which this field is attached.
+   *     - $entity is the entity object to which this field is attached.
    *     - $field_name is the name of this field
    *     - 'und' is the language code (in this case 'und' == undefined)
    *     - 0 is the cardinality.  Increment by 1 when more than one item is
@@ -493,7 +497,7 @@ class TripalField {
   }
 
   /**
-   * Provides the list of elements returned by the 'value' of the field. \
+   * Provides the list of elements returned by the 'value' of the field.
    *
    * The elements provided by this function are used to integrate with
    * Drupal Views and Web services.  The return value is an associative array
@@ -545,7 +549,7 @@ class TripalField {
         'elements' => array(
           'rdfs:label' => array(
             'searchable' => TRUE,
-            'name' => 'scientfic_name',
+            'name' => 'scientific_name',
             'operations' => array('eq', 'ne', 'contains', 'starts'),
             'sortable' => TRUE,
           ),

@@ -115,6 +115,11 @@ function tripal_chado_bundle_fields_info_base(&$info, $details, $entity_type, $b
       continue;
     }
 
+    // Skip the type ID as it will be handled by a custom field.
+    if ($column_name == 'type_id') {
+      continue;
+    }
+
     // Set some defaults for the field.
     $base_info = array(
       'field_name' => $field_name,
@@ -182,6 +187,16 @@ function tripal_chado_bundle_fields_info_base(&$info, $details, $entity_type, $b
     if ($column_name == 'uniquename') {
       $base_info['settings']['text_processing'] = 0;
     }
+
+    // Sometimes the boolean fields are listed as integer.  We need to
+    // correct for that.
+    if ($column_name == 'is_obsolete' or $column_name == 'is_analysis' or
+        $column_name == 'is_relationshiptype' or $column_name == 'is_for_definition' or
+        $column_name == 'is_view' or $column_name == 'is_updateable') {
+      $base_info['type'] = 'list_boolean';
+      $base_info['settings']['allowed_values'] = array(0 => "No", 1 => "Yes");
+    }
+
     //
     // PUB TABLE
     //
@@ -191,7 +206,6 @@ function tripal_chado_bundle_fields_info_base(&$info, $details, $entity_type, $b
       $base_info['type'] = 'text';
       $base_info['settings']['text_processing'] = 0;
     }
-
     $info[$field_name] = $base_info;
   }
 }
@@ -209,8 +223,8 @@ function tripal_chado_bundle_fields_info_custom(&$info, $details, $entity_type, 
 
   $schema = chado_get_schema($table_name);
 
-  // An additional type for the publication
-  if ($table_name == 'pub') {
+  // Handle type_id fields that are not the type_column.
+  if (array_key_exists('type_id', $schema['fields']) and 'type_id' != $type_column) {
     $field_name = 'schema__additional_type';
     $field_type = 'schema__additional_type';
     $info[$field_name] = array(
@@ -433,11 +447,42 @@ function tripal_chado_bundle_fields_info_custom(&$info, $details, $entity_type, 
       ),
     );
   }
+
+  // Add field for viewing the phylogenetic tree.
+  if ($table_name == 'phylotree') {
+    $field_name = 'operation__phylotree_vis';
+    $field_type = 'operation__phylotree_vis';
+    $info[$field_name] = array(
+      'field_name' => $field_name,
+      'type' => $field_type,
+      'cardinality' => 1,
+      'locked' => FALSE,
+      'storage' => array(
+        'type' => 'field_chado_storage',
+      ),
+    );
+  }
+
+  //protocol
+  if ($table_name == 'protocol' and array_key_exists('protocol_id', $schema['fields'])) {
+    $field_name = 'sep__protocol';
+    $field_type = 'sep__protocol';
+    $info[$field_name] = array(
+      'field_name' => $field_name,
+      'type' => $field_type,
+      'cardinality' => 1,
+      'locked' => FALSE,
+      'storage' => array(
+        'type' => 'field_chado_storage',
+      ),
+    );
+  }
+
 }
 
 /**
  *
- * @param unknown $details
+ * @param $details
  */
 function tripal_chado_bundle_fields_info_linker(&$info, $details, $entity_type, $bundle) {
 
@@ -761,14 +806,19 @@ function tripal_chado_bundle_instances_info_base(&$info, $entity_type, $bundle, 
       continue;
     }
 
-    // Don't create base fields for the primary key and the type_id field.
-    if ($column_name == $pkey or $column_name == $type_column) {
+    // Skip the cvterm.is_relationshptype.
+    if ($table_name == 'cvterm' and $column_name == 'is_relationshiptype') {
       continue;
     }
 
-    // Skip the type field that will always be custom
-    if (($table_name == $type_table and $column_name == $type_column) or
-        $column_name == 'type_id') {
+    // The biosourceprovider_id and taxon_id are handled by custom fields.
+    if ($table_name == 'biomaterial' and (
+        $column_name == 'biosourceprovider_id' or $column_name == 'taxon_id')) {
+      continue;
+    }
+
+    // Don't create base fields for the primary key and the type_id field.
+    if ($column_name == $pkey or $column_name == $type_column) {
       continue;
     }
 
@@ -778,12 +828,6 @@ function tripal_chado_bundle_instances_info_base(&$info, $entity_type, $bundle, 
       // don't create another one here.
       continue;
     }
-
-    if ($table_name == 'biomaterial' and (
-        $column_name == 'biosourceprovider_id' or $column_name == 'taxon_id')) {
-      continue;
-    }
-
     $field_name = strtolower($cvterm->dbxref_id->db_id->name . '__' . preg_replace('/[^\w]/', '_', $cvterm->name));
     $field_name = substr($field_name, 0, 32);
 
@@ -795,6 +839,11 @@ function tripal_chado_bundle_instances_info_base(&$info, $entity_type, $bundle, 
     // If the type_id defines the content type and it's part of the
     // base table and this column is the type_id then skip it.
     if (!$type_table and $type_column and $column_name == $type_column) {
+      continue;
+    }
+
+    // Skip the type ID as it will be handled by a custom field.
+    if ($column_name == 'type_id') {
       continue;
     }
 
@@ -895,6 +944,15 @@ function tripal_chado_bundle_instances_info_base(&$info, $entity_type, $bundle, 
     if ($base_info['label'] == 'Timelastmodified') {
       $base_info['label'] = 'Time Last Modified';
       $base_info['description'] = 'Please enter the time that this record was last modified. The default is the current time.';
+    }
+
+    // Sometimes the boolean fields are listed as integer.  We need to
+    // correct for that.
+    if ($column_name == 'is_obsolete' or $column_name == 'is_analysis' or
+        $column_name == 'is_relationshiptype' or $column_name == 'is_for_definition' or
+        $column_name == 'is_view' or $column_name == 'is_updateable') {
+      $base_info['widget']['type'] = 'options_onoff';
+      $base_info['required'] = FALSE;
     }
     //
     // ORGANISM TABLE
@@ -1002,6 +1060,14 @@ function tripal_chado_bundle_instances_info_base(&$info, $entity_type, $bundle, 
       $base_info['label'] = 'Short Description';
     }
 
+    //
+    // CONTACT TABLE
+    //
+    if ($table_name == 'contact' and $column_name == 'description') {
+      $base_info['label'] = 'Short Description';
+    }
+
+
     $info[$field_name] = $base_info;
   }
 }
@@ -1025,27 +1091,47 @@ function tripal_chado_bundle_instances_info_custom(&$info, $entity_type, $bundle
   $schema = chado_get_schema($table_name);
 
   // An additional type for publications
-  if ($table_name == 'pub') {
+  if (array_key_exists('type_id', $schema['fields']) and 'type_id' != $type_column) {
     $field_name = 'schema__additional_type';
     $is_required = FALSE;
     if (array_key_exists('not null', $schema['fields']['type_id']) and
         $schema['fields']['type_id']['not null']) {
       $is_required = TRUE;
     }
+    $label = ucwords(preg_replace('/_/', ' ', $table_name)) . ' Type';
+    $default_vocab = '';
+    $parent_term = '';
+    switch($table_name) {
+      case 'pub':
+        $default_vocab = 'tripal_pub';
+        $label = 'Publication Type';
+        $parent_term = 'TPUB:0000015';
+        $description = 'Select the type.';
+        break;
+      case 'contact':
+        $default_vocab = 'tripal_contact';
+        $parent_term = 'TContact:0000001';
+        $description = 'Select the type.';
+        break;
+      default:
+        $description = t('Enter the name of the term that specifies the type. ' .
+            'The type must be the name of a term in a controlled vocabulary and ' .
+            'the controlled vocabulary should already be loaded into this site.');
+    }
     $info[$field_name] =  array(
       'field_name' => $field_name,
       'entity_type' => $entity_type,
       'bundle' => $bundle->name,
-      'label' => 'Publication Type',
-      'description' => 'Select the publication type.',
+      'label' => $label,
+      'description' => $description,
       'required' => $is_required,
       'settings' => array(
         'auto_attach' => TRUE,
         'chado_table' => $table_name,
         'chado_column' => 'type_id',
         'base_table' => $table_name,
-        'vocabulary' => 'tripal_pub',
-        'parent_term' => 'TPUB:0000015',
+        'vocabulary' => $default_vocab,
+        'parent_term' => $parent_term,
       ),
       'widget' => array(
         'type' => 'schema__additional_type_widget',
@@ -1526,6 +1612,85 @@ function tripal_chado_bundle_instances_info_custom(&$info, $entity_type, $bundle
       ),
     );
   }
+
+  // Phylotree Viewer
+  if ($table_name == 'phylotree') {
+    $field_name = 'operation__phylotree_vis';
+    $schema = chado_get_schema('phylotree');
+    $pkey = $schema['primary key'][0];
+    $info[$field_name] = array(
+      'field_name' => $field_name,
+      'entity_type' => $entity_type,
+      'bundle' => $bundle->name,
+      'label' => 'Tree View',
+      'description' => 'Rendering of a phylogenetic tree.',
+      'required' => FALSE,
+      'settings' => array(
+        'auto_attach' => FALSE,
+        'chado_table' => 'phylotree',
+        'chado_column' => 'type_id',
+        'base_table' => 'phylotree',
+      ),
+      'widget' => array(
+        'type' => 'operation__phylotree_vis_widget',
+        'settings' => array(
+          'display_label' => 0,
+        ),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'operation__phylotree_vis_formatter',
+          'settings' => array(),
+        ),
+      ),
+    );
+  }
+
+
+  // PROTOCOL FIELD
+  if ($table_name != 'protocol' and
+    (array_key_exists('protocol_id', $schema['fields']))) {
+
+    $field_name = 'sep__protocol';
+    $is_required = FALSE;
+    $table_column = 'protocol_id';
+    if  (array_key_exists('not null', $schema['fields']['protocol_id']) and
+      $schema['fields']['protocol_id']['not null']) {
+      $is_required = TRUE;
+    }
+    $info[$field_name] =  array(
+      'field_name' => $field_name,
+      'entity_type' => $entity_type,
+      'bundle' => $bundle->name,
+      'label' => 'Protocol',
+      'description' => 'The parameterizable description of a process',
+      'required' => $is_required,
+      'settings' => array(
+        'auto_attach' => TRUE,
+        'chado_table' => $table_name,
+        'chado_column' => $table_column,
+        'base_table' => $table_name,
+      ),
+      'widget' => array(
+        'type' => 'sep__protocol_widget',
+        'settings' => array(
+          'display_label' => 1,
+        ),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'inline',
+          'type' => 'sep__protocol_formatter',
+          'settings' => array(),
+        ),
+      ),
+    );
+  }
+
+
+
+
 }
 
 /**
@@ -2105,6 +2270,7 @@ function tripal_chado_bundle_instances_info_linker(&$info, $entity_type, $bundle
       ),
     );
   }
+
 }
 
 /**

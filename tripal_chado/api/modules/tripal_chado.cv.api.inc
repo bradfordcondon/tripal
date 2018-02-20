@@ -3,22 +3,15 @@
  * @file
  * This module provides a set of functions to simplify working with
  * controlled vocabularies.
+ *
+ * @ingroup tripal_chado
  */
 
 /**
- * @defgroup tripal_chado_api Controlled Vocabulary API
- * @ingroup tripal_api
- * This module provides a set of functions to simplify working with
- * controlled vocabularies.  Most of the API functions deal with retrieving
- * terms or their parent vocabularies.
- *
- * However, the API also supports
- * generation of trees for browsing a vocabulary as well as generation of
- * pie graphs for display of hierarchical counts of terms.  Version 0.3b of
- * Tripal provides a feature browser and a feature summary chart uses
- * the API functions provided here.  But in general charts and trees can be
- * created for any controlled vocabulary.
- *
+ * @defgroup tripal_chado_cv_api Chado CV
+ * @ingroup tripal_chado_api
+ * @{
+ * @}
  */
 
 /**
@@ -42,7 +35,7 @@
  *   will be returned (will be a chado variable from chado_generate_var()). Otherwise,
  *   FALSE will be returned.
  *
- * @ingroup tripal_chado_api
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_get_cv($identifiers, $options = array()) {
 
@@ -123,7 +116,7 @@ function tripal_get_cv($identifiers, $options = array()) {
  * @return
  *   An array(cv_id => name) for each cv in the chado cv table
  *
- * @ingroup tripal_chado_api
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_get_cv_select_options() {
 
@@ -172,7 +165,7 @@ function tripal_get_cv_select_options() {
  *   the cvterm will be returned (will be a chado variable from
  *   chado_generate_var()). Otherwise, FALSE will be returned.
  *
- * @ingroup tripal_cv_api
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_get_cvterm($identifiers, $options = array()) {
 
@@ -302,7 +295,7 @@ function tripal_get_cvterm($identifiers, $options = array()) {
  *   An associative array with the cvterm_id's as keys. The first
  *   element in the array has a key of '0' and a value of 'Select a Type'
  *
- * @ingroup tripal_chado_api
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_get_cvterm_select_options($cv_id, $rel_type = FALSE) {
   $columns = array('cvterm_id', 'name');
@@ -336,7 +329,7 @@ function tripal_get_cvterm_select_options($cv_id, $rel_type = FALSE) {
  * @return
  *   TRUE on success FALSE on failure
  *
- * @ingroup tripal_chado_api
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_update_cvtermpath_old($cv_id, $job_id = NULL) {
   // TODO: need better error checking in this function
@@ -375,6 +368,8 @@ function tripal_update_cvtermpath_old($cv_id, $job_id = NULL) {
  * @param $cvid
  *   The controlled vocabulary ID from the cv table of Chado (i.e. cv.cv_id).
  * @param $job_id
+ *
+ * @ingroup tripal_chado_cv_api
  */
 function tripal_update_cvtermpath($cv_id, $job_id = NULL){
   // TODO: there's a function to determine the current Chado instance.
@@ -417,8 +412,10 @@ function tripal_update_cvtermpath($cv_id, $job_id = NULL){
  *   The term ID from the cvterm table of Chado (i.e. cvterm.cvterm_id).
  * @param $cvid
  *   The controlled vocabulary ID from the cv table of Chado (i.e. cv.cv_id).
+ *
+ * @ingroup tripal_chado_cv_api
  */
-function tripal_update_cvtermpath_root_loop($rootid, $cvid, &$roots){
+function tripal_update_cvtermpath_root_loop($rootid, $cvid, &$roots) {
 
   // Get's the cvterm record for this "root".
   $ttype = db_select('cvterm', 'cv')
@@ -437,23 +434,26 @@ function tripal_update_cvtermpath_root_loop($rootid, $cvid, &$roots){
     }
   }
   // Then add that new entry to the $tree_path.
-  $roots[] =  $term_id;
+  $roots[] = $term_id;
 
   // Descends through the branch starting at this "root" term.
-  $visited = array();
+  $tree_path = array();
+  $matched_rows = array();
+  $possible_start_of_loop = array();
   $depth = 0;
-  tripal_update_cvtermpath_loop($rootid, $rootid, $cvid, $result->cvterm_id, $depth, 0, $visited);
+  tripal_update_cvtermpath_loop($rootid, $rootid, $cvid, $result->cvterm_id, $depth,
+                                0, $tree_path, FALSE, $matched_rows, $possible_start_of_loop, FALSE);
 
   // Get's the children terms of this "root" term and then recursively calls
   // this function making each child root.
   $cterm = db_query(
     'SELECT *
-     FROM cvterm_relationship
-     WHERE object_id = :rootid
+      FROM cvterm_relationship
+      WHERE object_id = :rootid
     ',
     array(':rootid' => $rootid)
   );
-  while($cterm_result = $cterm->fetchAssoc()) {
+  while ($cterm_result = $cterm->fetchAssoc()) {
     tripal_update_cvtermpath_root_loop($cterm_result['subject_id'], $cvid, $roots);
   }
 }
@@ -479,370 +479,313 @@ function tripal_update_cvtermpath_root_loop($rootid, $cvid, &$roots){
  *     -build_id: an string identifier for the child that combines the origin,
  *      child cvterm_id,cv_id, and the type_id.
  *     -depth: the depth that a child was inserted into the cvtermpath table.
+ * @param $possible_loop
+ *    A boolean flag.
+ * @param $matched_row
+ *    An array of rows that are currently in the cvtermpath table that match the
+ *    build_id of the current term trying to be written to the table
+ * @param $possible_start_of_ loop
+ *    The array of the possible loop item between the current child and the origin.
+ *    Each element in the array is an associative array with the keys:
+ *     - cvid : $cv_id
+ *     - subject_id:
+ *     - child_id : $child_id,
+ *     - type_id : $type_id,
+ *     - depth : $depth,
+ * @param $no_loop_skip_test
+ *     A boolean used when the possible loop has been ruled out as a loop.
  * @return multitype:
  */
-$loop_data;
+function tripal_update_cvtermpath_loop(
+  $origin,
+  $child_id,
+  $cv_id,
+  $type_id,
+  $depth,
+  $increment_of_depth,
+  $tree_path,
+  $possible_loop,
+  $matched_rows,
+  $possible_start_of_loop,
+  $no_loop_skip_test) {
 
-function tripal_update_cvtermpath_loop($origin, $child_id, $cv_id, $type_id, $depth,
-                                       $increment_of_depth, $tree_path){
-  // An array of
-  global $loop_data;
-  // Check to see if a row with these values already exists.
-  chado_set_active('chado');
-  $count =  db_query(
-    'SELECT *
-     FROM cvtermpath
-     WHERE cv_id = :cvid
-      AND object_id = :origin
-      AND subject_id = :child_id
-      AND pathdistance = :depth
-    ',
-    array(':cvid' => $cv_id, ':origin' => $origin, ':child_id' => $child_id, ':depth' => $depth)
-  );
-  $count_total = $count->rowCount();
-  // If we've already seen this term then just return, we don't want
-  // to insert it again.
-  if ($count_total > 0) {
-    return $loop_data;
-  }
-  // Build the ID.
-  $term_id = $origin . '|' . $child_id . '|' . $cv_id . '|' . $type_id;
-  // Now check if the most recent entry already exists in the array.
-  if ($increment_of_depth != 0 && empty($loop_data)) {
-    // Search the $tree_path for the new $child_id in the build_id column.
-    foreach ($tree_path as $parent) {
-      // If this child is the same as a parent term that has already been
-      // processed then we have a potential loop.
-      if ($parent['build_id'] == $term_id) {
-        // The loop checker function below.
-        $result_of_loop_checker = tripal_update_cvtermpath_loop_checker($origin,
-          $child_id, $cv_id, $type_id, $depth, $increment_of_depth, 0,
-          $parent, array(), $depth);
-        if (!empty($result_of_loop_checker)) {
-          $loop_data = $result_of_loop_checker;
-          //Find the depth of the loop start by finding it in the array_of_children
-          foreach($tree_path as $children => $child){
-            if($child['build_id'] == $loop_data['build_id']){
-              $loop_location = $child['depth'];
-            }
-          }
-          $array_loop_data = (array)$loop_data;
-          $array_loop_data['depth'] = $loop_location;
-          $loop_data = $array_loop_data;
-          break;
-        }
-      }
-      if (!empty($loop_data)) {
-        return $loop_data;
-      }
-    }
-  }
   // We have not detected a loop, so it's safe to insert the term.
-  $query = db_insert('cvtermpath')
-    ->fields([
-      'object_id' => $origin,
-      'subject_id' => $child_id,
-      'cv_id' => $cv_id,
-      'type_id' => $type_id,
-      'pathdistance' => $depth,
-    ]);
-  $rows = $query->execute();
-  // Then add that new entry to the $tree_path.
-  $tree_path[$increment_of_depth] = [
-    'build_id' => $term_id,
-    'depth' => $depth
-  ];
-  // Get all of the relationships of this child term, and recursively
-  // call the tripal_update_cvtermpath_loop() function to continue
-  // descending down the tree.
-  $query = db_select('cvterm_relationship', 'cvtr')
-    ->fields('cvtr')
-    ->condition('cvtr.object_id', $child_id, '=')
-    ->execute();
-  $cterm_relationships = $query->fetchAll();
-  foreach ($cterm_relationships as $item) {
-    if (!empty($loop_data)) {
-      if ($loop_data['depth'] < $depth) {
-        break;
+  $new_match_rows = array();
+  if (!empty($possible_start_of_loop)) {
+    // Go through each matched_row.
+    if (count($matched_rows) === 1) {
+      // Get the cvtermpath_id and then increment down one row.
+      $cvtermpath_id = (int) $matched_rows[0]->cvtermpath_id;
+      $cvtermpath_id = $cvtermpath_id + 1;
+      chado_set_active('chado');
+      $next_row = db_query(
+        'SELECT *
+          FROM cvtermpath
+          WHERE cvtermpath_id = :cvtermpath_id
+        ',
+        array(':cvtermpath_id' => $cvtermpath_id)
+      );
+      $next_row = $next_row->fetchObject();
+
+      // If the next row matches the values passed we can't rule out a loop.
+      if (($next_row->type_id === $type_id) &&
+          ($next_row->subject_id === $child_id) &&
+          ($next_row->object_id === $origin) &&
+          ($next_row->cv_id === $cv_id)) {
+        $new_match_rows[] = $next_row;
       }
-      elseif ($loop_data['depth'] > $depth) {
-        $loop_data = NULL;
-        break;
+      elseif (($next_row->type_id === $possible_start_of_loop['type_id']) &&
+              ($next_row->subject_id === $possible_start_of_loop['subject_id']) &&
+              ($next_row->object_id === $possible_start_of_loop['object_id']) &&
+              ($next_row->cv_id === $possible_start_of_loop['cv_id'])) {
+        // The next_row is equal to start of loop, so we've reached the end
+        // and confirmed that this is a loop.
+        $possible_loop == FALSE;
+        $matched_rows = array();
+        tripal_update_cvtermpath_loop_increment($origin, $child_id, $cv_id,
+        $type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+        $new_match_rows, $possible_start_of_loop, $no_loop_skip_test);
+
       }
     }
     else {
-      $increment_of_depth++;
-      tripal_update_cvtermpath_loop($origin, $item->subject_id, $cv_id,
-        $item->type_id, $depth + 1, $increment_of_depth, $tree_path);
+      foreach ($matched_rows as $matched_row) {
+        // Get the cvtermpath_id and then increment down one row.
+        $cvtermpath_id = (int) $match_row->cvtermpath_id;
+        // Get the cvtermpath_id and then increment down one row.
+        $cvtermpath_id = $cvtermpath_id + 1;
+        chado_set_active('chado');
+        $next_row = db_query(
+          'SELECT *
+            FROM cvtermpath
+            WHERE cvtermpath_id = :cvtermpath_id
+          ',
+          array(':cvtermpath_id' => $cvtermpath_id)
+        );
+        $next_row = $next_row->fetchObject();
+
+        // If the next row matches the values passed we can't rule out a loop.
+        if (($next_row->type_id === $type_id) &&
+            ($next_row->subject_id === $child_id) &&
+            ($next_row->object_id === $origin) &&
+            ($next_row->cv_id === $cv_id)) {
+          $new_match_rows[] = $next_row;
+        }
+        elseif (($next_row->type_id === $possible_start_of_loop['type_id']) &&
+                ($next_row->subject_id === $possible_start_of_loop['subject_id']) &&
+                ($next_row->object_id === $possible_start_of_loop['object_id']) &&
+                ($next_row->cv_id === $possible_start_of_loop['cv_id'])) {
+          // The next_row is equal to start of loop, so we've reached the end
+          // and confirmed that this is a loop.
+          $possible_loop == FALSE;
+          $matched_rows = array();
+          tripal_update_cvtermpath_loop_increment($origin, $child_id, $cv_id,
+          $type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+          $new_match_rows, $possible_start_of_loop, $no_loop_skip_test);
+
+        }
+      }
     }
+    // If $match_rows is empty there is no loop.
+    if (empty($new_match_rows)) {
+      $possible_loop == FALSE;
+      $matched_rows = array();
+      unset($new_match_rows);
+      $no_loop_skip_test = TRUE;
+      // There is not loop so pass it back the possible_start_of_loop info
+      // and a flag telling it to skip the loop check.
+      tripal_update_cvtermpath_loop_increment($possible_start_of_loop->subject_id,
+      $possible_start_of_loop->child_id, $possible_start_of_loop->cvid,
+      $possible_start_of_loop->type_id, $possible_start_of_loop->depth,
+      $increment_of_depth, $tree_path, $possible_loop, $matched_rows,
+      $possible_start_of_loop, $no_loop_skip_test);
+    }
+    // If $match_rows is not empty we need to keep trying rows.
+    else {
+      tripal_update_cvtermpath_loop_increment($origin, $child_id, $cv_id,
+      $type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+      $match_rows, $possible_start_of_loop, $no_loop_skip_test);
+    }
+  }
+  elseif ($possible_loop === FALSE) {
+    tripal_update_cvtermpath_loop_increment($origin, $child_id, $cv_id,
+    $type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+    $matched_rows, $possible_start_of_loop, $no_loop_skip_test);
   }
 }
 
 /**
- * @param $origin
- * @param $child_id
- * @param $cv_id
- * @param $type_id
- * @param $depth
- * @param $increment_of_depth
- * @param $distance_between_parent_child
- * @param $possible_start_of_loop
- * @param $array_of_possible_loop
- * @param $depth_at_start_of_loop
  *
- * @return bool
+ * @param $origin
+ *   The root terms cvterm_id.
+ * @param $child_id
+ *   The cvterm_id of the current child term.  The child term is a descendent
+ *   of the origin.
+ * @param $cv_id
+ *   The controlled vocabulary ID from the cv table of Chado (i.e. cv.cv_id).
+ * @param $type_id
+ *   The relationship type between the origin term and the child.
+ * @param $depth
+ *   The depth of the recursion.
+ * @param $increment_of_depth.
+ *   An integer ??
+ * @param $tree_path.
+ *   The array of every term between the current child and the origin. Each
+ *   element in the array is an associative array with the keys:
+ *     -build_id: an string identifier for the child that combines the origin,
+ *      child cvterm_id,cv_id, and the type_id.
+ *     -depth: the depth that a child was inserted into the cvtermpath table.
+ * @param $possible_loop
+ *    A boolean flag.
+ * @param $matched_row
+ *    An array of rows that are currently in the cvtermpath table that match the
+ *    build_id of the current term trying to be written to the table
+ * @param $possible_start_of_ loop
+ *    The array of the possible loop item between the current child and the origin.
+ *    Each element in the array is an associative array with the keys:
+ *     - cvid : $cv_id
+ *     - subject_id:
+ *     - child_id : $child_id,
+ *     - type_id : $type_id,
+ *     - depth : $depth,
+ * @param $no_loop_skip_test
+ *     A boolean used when the possible loop has been ruled out as a loop.
+ * @return multitype:
  */
-function tripal_update_cvtermpath_loop_checker($origin, $child_id, $cv_id, $type_id,
-    $depth, $increment_of_depth, $distance_between_parent_child, $possible_start_of_loop,
-    $array_of_possible_loop, $depth_at_start_of_loop){
+function tripal_update_cvtermpath_loop_increment(
+  $origin,
+  $child_id,
+  $cv_id,
+  $type_id,
+  $depth,
+  $increment_of_depth,
+  $tree_path,
+  $possible_loop,
+  $matched_rows,
+  &$possible_start_of_loop,
+  $no_loop_skip_test) {
 
-  // Find the child terms of the current term via the relationship taboe.
-  chado_set_active('chado');
-  $query = db_select('cvterm_relationship', 'cvtr')
-    ->fields('cvtr')
-    ->condition('cvtr.object_id', $child_id, '=')
-    ->execute();
-  $cterm_relationships = $query->fetchAll();
+  // Check to see if a row with these values already exists.
+  if ($possible_loop === FALSE && empty($possible_start_of_loop)) {
+    chado_set_active('chado');
+    $count = db_query(
+      'SELECT *
+        FROM cvtermpath
+        WHERE cv_id = :cvid
+        AND object_id = :origin
+        AND subject_id = :child_id
+        AND pathdistance = :depth
+      ',
+      array(
+        ':cvid' => $cv_id,
+        ':origin' => $origin,
+        ':child_id' => $child_id,
+        ':depth' => $depth
+      )
+    );
+    $count_total = $count->rowCount();
+    if ($count_total > 0) {
+      return $count;
+    }
+    // Build the ID.
+    $term_id = $origin . '|' . $child_id . '|' . $cv_id . '|' . $type_id;
 
-  // Iterate through the child terms via the relationships.
-  foreach ($cterm_relationships as $item){
-    // Search the $tree_path for the new $child_id in the build_id column.
-    foreach ($array_of_possible_loop as $parent) {
-      if ($parent['build_id'] === $possible_start_of_loop['build_id']) {
-        // If the search returns something check for a possible loop.
-        if (!empty($parent)) {
-          $result = tripal_update_cvtermpath_loop_checker_traverse($origin, $child_id,
-              $cv_id, $type_id, $depth, $increment_of_depth, $possible_start_of_loop,
-              $array_of_possible_loop, array(), 0);
-          if(!empty($result)){
-            break 2;
+    if ($no_loop_skip_test === FALSE) {
+      // Now check if the most recent entry already exists in the array.
+      if ($increment_of_depth != 0) {
+        // Search the $tree_path for the new $child_id in the build_id column.
+        foreach ($tree_path as $parent) {
+          // If this child is the same as a parent term that has already been
+          // processed then we have a potential loop.
+          if ($parent['build_id'] == $term_id) {
+            // Tell the function this is a possible loop and to stop writing to the table.
+            $possible_loop = TRUE;
+            // Find all the results in the table that might be the start of the loop.
+            $matching_rows = db_query(
+              'SELECT *
+              FROM cvtermpath
+              WHERE cv_id = :cvid
+              AND object_id = :origin
+              AND subject_id = :child_id
+              AND type_id = :type_id
+              ',
+              array(
+                ':cvid' => $cv_id,
+                ':origin' => $origin,
+                ':child_id' => $child_id,
+                ':type_id' => $type_id
+              )
+            );
+            $matched_rows = $matching_rows->fetchAll();
+            $possible_start_of_loop = array(
+              'cvid' => $cv_id,
+              'subject_id' => $origin,
+              'child_id' => $child_id,
+              'type_id' => $type_id,
+              'depth' => $depth,
+            );
           }
         }
       }
-    }
-
-    $increment_of_depth++;
-    $distance_between_parent_child++;
-    $child_id = $origin . '|' . $item->subject_id . '|' . $cv_id . '|' . $item->type_id;
-    $array_of_possible_loop[$distance_between_parent_child] = ['build_id' => $child_id];
-    $result = tripal_update_cvtermpath_loop_checker($origin, $item->subject_id, $cv_id, $item->type_id, $depth + 1, $increment_of_depth, $distance_between_parent_child, $possible_start_of_loop, $array_of_possible_loop, $depth_at_start_of_loop);
-    if($result !== FALSE){
-      return $result;
-    }
-
-  }
-  if (!empty($result)) {
-    return $result;
-  }
-  else {
-    return FALSE;
-  }
-}
-
-function tripal_update_cvtermpath_loop_checker_traverse($origin, $child_id, $cv_id,
-    $type_id, $depth, $increment_of_depth, $possible_start_of_loop, $array_of_possible_loop,
-    $traverse_of_loop, $increment) {
-
-  //watchdog('debug', '<pre>$increment: '. print_r($increment, TRUE) .'</pre>');
-  /*if ($increment > 10) {
-    die();
-  }*/
-  chado_set_active('chado');
-  $query = db_select('cvterm_relationship', 'cvtr')
-    ->fields('cvtr')
-    ->condition('cvtr.object_id', $child_id, '=')
-    ->execute();
-  $cterm = $query->fetchAll();
-
-  foreach ($cterm as $item) {
-    if ($array_of_possible_loop === $traverse_of_loop) {
-      watchdog('debug', 'LOOP');
-      //Report the loop.
-      $loop_found = end($array_of_possible_loop);
-      break;
-    }
-    elseif ($array_of_possible_loop != $traverse_of_loop) {
-      $increment_of_depth++;
-      $increment++;
-      $child_id = $origin . '|' . $item->subject_id . '|' . $cv_id . '|' . $item->type_id;
-      $traverse_of_loop[$increment] = ['build_id' => $child_id];
-      $result = tripal_update_cvtermpath_loop_checker_traverse($origin,
-          $item->subject_id, $cv_id, $item->type_id, $depth + 1,
-          $increment_of_depth, $possible_start_of_loop, $array_of_possible_loop,
-          $traverse_of_loop, $increment);
-      if ($result !== FALSE) {
-        return $result;
-      }
-    }
-  }
-  if ($loop_found) {
-    return $loop_found;
-  }
-  else {
-    return FALSE;
-
-  }
-}
-/*
- *
- * @param $origin
- * @param $subject_id
- * @param $cv_idxkcd
- * @param $type_id
- * @param $depth
- * @return multitype:
-
-function tripal_update_cvtermpath_loop($origin, $child_id, $cv_id, $type_id, $depth){
-  // Variables and arrays needed for loop checking.
-  $tree_path;
-  $array_of_possible_loop;
-  $possible_start_of_loop;
-  $distance_between_parent_child;
-  $increment_of_depth;
-
-
-  chado_set_active('chado');
-  $count =  db_query(
-    'SELECT *
-     FROM cvtermpath
-     WHERE cv_id = :cvid
-      AND object_id = :origin
-      AND subject_id = :child_id
-      AND pathdistance = :depth
-    ',
-    array(':cvid' => $cv_id, ':origin' => $origin, ':child_id' => $child_id, ':depth' => $depth)
-  );
-  $count_total = $count->rowCount();
-
-  //Loop check
-  chado_set_active('chado');
-  $loop = db_query(
-    'SELECT *
-     FROM cvtermpath
-     WHERE cv_id = :cvid
-      AND object_id = :origin
-      AND subject_id = :child_id
-      AND type_id = :type_id
-    ',
-    array(':cvid' => $cv_id, ':origin' => $origin, ':child_id' => $child_id, ':type_id' => $type_id,)
-  );
-  $loop_check = $loop->rowCount();
-
-  //watchdog('debug', '<pre>tripal_ds_preprocess_TripalEntity $rows ' . print_r($rows, TRUE) . '</pre>');
-  /*if(!empty($rows)){
-    foreach($rows as $row){
-      tripal_update_cvtermpath_loop_check($origin, $child_id, $cv_id, $type_id, $depth, $row->cvtermpath_id, 0);
-    }
-  }
-  else {*/
-  //If no loop proceed.
-  /*try{
-    if($count_total == 0) {
-      chado_set_active('chado');
 
       $query = db_insert('cvtermpath')
-        ->fields(array(
+        ->fields([
           'object_id' => $origin,
           'subject_id' => $child_id,
           'cv_id' => $cv_id,
           'type_id' => $type_id,
           'pathdistance' => $depth,
-        ));
+        ]);
       $rows = $query->execute();
+
+      // Then add that new entry to the $tree_path.
+      $tree_path[$increment_of_depth] = [
+        'build_id' => $term_id,
+        'depth' => $depth
+      ];
     }
-    if ($loop_check == 0) {
-      chado_set_active('chado');
+    // Reset to FALSE  and empty variable if passed in as TRUE.
+    $no_loop_skip_test == FALSE;
+    $possible_start_of_loop = array();
 
-      $query = db_select('cvterm_relationship', 'cvtr')
-        ->fields('cvtr')
-        ->condition('cvtr.object_id', $child_id, '=')
-        ->execute();
-      $cterm = $query->fetchAll();
-
-      foreach ($cterm as $item) {
-        //watchdog('debug', '<pre>tripal_ds_preprocess_TripalEntity $item ' . print_r($item, TRUE) . '</pre>');
-        tripal_update_cvtermpath_loop($origin, $item->subject_id, $cv_id, $item->type_id, $depth + 1);
-      };
-      //}
-    }
-  }
-  catch(Exception $e){
-    watchdog_exception('tripal_ds', $e);
-    return FALSE;
-  }
-
-  return 1;
-
-}
-*/
-/**
- *
- * @param $origin
- * @param $subject_id
- * @param $cv_id
- * @param $type_id
- * @param $depth
- * @return multitype:
-
-function tripal_update_cvtermpath_loop_check($origin, $child_id, $cv_id, $type_id, $depth, $cvtermpath_id, $loop_count, $loop_check, $object_id){
-  //Store the
-
-  //Check if the passed parameters match any of the items in the loop_check array.
-  if(!empty($loop_check)){
-    foreach($loop_check as $item){
-        if ($item['type_id'] = $type_id){
-          if($item['subject_id'] = $child_id){
-            if($item['object_id'] = $object_id){
-              //Loop found, roll back all rows until $cvtermpath_id-1 (last correct entry)
-              // and step into the next loop
-            }
-          }
-        }
-    }
-  }
-  $loop_count + 1;
-
-  chado_set_active('chado');
-  $count =  db_query(
-    'SELECT *
-     FROM cvtermpath
-     WHERE cv_id = :cvid AND object_id = :origin
-       AND subject_id = :child_id
-       AND pathdistance = :depth
-    ',
-    array(':cvid' => $cv_id, ':origin' => $origin, ':child_id' => $child_id, ':depth' => $depth)
-  );
-  $count_total = $count->rowCount();
-
-  if ($count_total == 0) {
-    chado_set_active('chado');
-    $query = db_insert('cvtermpath')
-      ->fields(array(
-        'object_id' => $origin,
-        'subject_id' => $child_id,
-        'cv_id' => $cv_id,
-        'type_id' => $type_id,
-        'pathdistance' => $depth,
-      ));
-    $rows = $query->execute();
-    $cterm = array();
+    // Get all of the relationships of this child term, and recursively
+    // call the tripal_update_cvtermpath_loop() function to continue
+    // descending down the tree.
     $query = db_select('cvterm_relationship', 'cvtr')
       ->fields('cvtr')
-      ->condition('cvtr.object_id', $child_id, '=' )
+      ->condition('cvtr.object_id', $child_id, '=')
       ->execute();
-    $cterm = $query->fetchAll();
+    $cterm_relationships = $query->fetchAll();
 
-    foreach ($cterm as $item) {
-      $loop_check[$loop_count]= $item;
-      tripal_update_cvtermpath_loop_check($origin, $item->subject_id, $cv_id, $item->type_id, $depth + 1, $loop_count, $loop_check, $item->object_id);
-    };
+    foreach ($cterm_relationships as $item) {
+      $increment_of_depth++;
+      tripal_update_cvtermpath_loop_increment($origin, $item->subject_id, $cv_id,
+        $item->type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+        $matched_rows, $possible_start_of_loop, $no_loop_skip_test);
+    }
   }
-
-
-  return 1;
-
+  elseif ($possible_loop === FALSE && !empty($possible_start_of_loop)) {
+    // This means a loop has been identified and the recursive call can move
+    // on to the next item and skip the rest of this run.
+    return $possible_start_of_loop;
+  }
+  elseif ($possible_loop === TRUE) {
+    // Get all of the relationships of this child term, and recursively
+    // call the tripal_update_cvtermpath_loop() function to continue
+    // descending down the tree.
+    $query = db_select('cvterm_relationship', 'cvtr')
+      ->fields('cvtr')
+      ->condition('cvtr.object_id', $child_id, '=')
+      ->execute();
+    $cterm_relationships = $query->fetchAll();
+    foreach ($cterm_relationships as $item) {
+      $increment_of_depth++;
+      tripal_update_cvtermpath_loop($origin, $item->subject_id, $cv_id,
+        $item->type_id, $depth + 1, $increment_of_depth, $tree_path, $possible_loop,
+        $matched_rows, $possible_start_of_loop, $no_loop_skip_test);
+    }
+  }
 }
- */
 
 /**
  * Adds a controlled vocabular to the CV table of Chado.
@@ -1251,7 +1194,7 @@ function tripal_insert_cvterm($term, $options = array()) {
         INNER JOIN {cv} CV on CV.cv_id = CVT.cv_id
       WHERE DBX.accession = :accession and DB.name = :dbname and CVT.name = :term and CV.name = :cvname
     ";
-    $check = chado_query($checksql, array(':accession' => $dbxref->accession, ':dbname' => $dbname, ':term' => $name, ':cvname' => $cvname))->fetchObject();
+    $check = chado_query($checksql, array(':accession' => $accession, ':dbname' => $dbname, ':term' => $name, ':cvname' => $cvname))->fetchObject();
     if (!$check) {
 
       // check to see if the dbxref exists if not, add it.
@@ -1427,7 +1370,35 @@ function tripal_get_obo($values) {
   }
   return $query->execute()->fetchObject();
 }
+/**
+ * This function is intended to be used in autocomplete forms.
+ *
+ * This function searches for a matching controlled vobulary name.
+ *
+ * @param $string
+ * The string to search for
+ *
+ * @return
+ * A json array of terms that begin with the provided string
+ *
+ * @ingroup tripal_chado_api
+ */
+function tripal_autocomplete_cv($string = '') {
+  $sql = "
+    SELECT CV.cv_id, CV.name
+    FROM {cv} CV
+    WHERE lower(CV.name) like lower(:name)
+    ORDER by CV.name
+    LIMIT 25 OFFSET 0
+  ";
+  $results = chado_query($sql, array(':name' => $string . '%'));
+  $items = array();
+  foreach ($results as $cv) {
+    $items[$cv->name] = $cv->name;
+  }
 
+  drupal_json_output($items);
+}
 /**
  * This function is intended to be used in autocomplete forms
  * for searching for CV terms that begin with the provided string
@@ -1599,59 +1570,5 @@ function tripal_associate_cvterm($basetable, $record_id, $cvterm, $options = arr
 
   return FALSE;
 }
-/**
- * This function sets the default vocabulary for a given table and field.
- *
- * @param $table
- *   The name of the table that contains a field with a foreign key
- *   relationship to the cvterm table
- * @param $field
- *   The table field name that has the foreign key relationship to the
- *   cvterm table for which the default vocabulary will be set
- * @param $cv_name
- *   The name of the vocabulary
- *
- * @return
- *   TRUE if set, FALSE if an error occured
- */
-function tripal_set_default_cv($table, $field, $cv_name, $cv_id = FALSE) {
 
-  // Get the CV object
-  if ($cv_id) {
-    $cv = tripal_get_cv(array('cv_id' => $cv_id));
-  }
-  else {
-    $cv = tripal_get_cv(array('name' => $cv_name));
-  }
-
-  if ($cv) {
-    // first delete any entries for this table and field
-    $num_deleted = db_delete('tripal_cv_defaults')
-    ->condition('table_name', $table)
-    ->condition('field_name', $field)
-    ->execute();
-
-    // now add the default value
-    $cv_default_id = db_insert('tripal_cv_defaults')
-    ->fields(array(
-      'table_name' => $table,
-      'field_name' => $field,
-      'cv_id'      => $cv->cv_id,
-    ))
-    ->execute();
-
-    if (!$cv_default_id) {
-      tripal_report_error('tripal_chado', TRIPAL_WARNING,
-      "Cannot set default vocabulary for %table.%field. Check the error logs.",
-      array('%table' => $table, '%field' => $field));
-      return FALSE;
-    }
-  }
-  else {
-    tripal_report_error('tripal_chado', TRIPAL_WARNING,
-    "Cannot set default vocabulary for %table.%field. The vocabulary name, '%cvname', doesn't exist.",
-    array('%table' => $table, '%field' => $field, '%cvname' => $cv_name));
-    return FALSE;
-  }
-}
 

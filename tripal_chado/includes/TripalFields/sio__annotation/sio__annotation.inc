@@ -102,22 +102,32 @@ class sio__annotation extends ChadoField {
         'operations' => array(),
         'sortable' => FALSE,
         'searchable' => FALSE,
-        'type' => 'array',
+        'type' => 'xs:complexType',
+        'readonly' => FALSE,
         'elements' => array(
           $vocabulary_term => array(
             'sortable' => TRUE,
             'searchable' => TRUE,
             'label' => 'Annotation Term Vocabulary',
+            'type' => 'xs:string',
+            'readonly' => FALSE,
+            'required' => TRUE,
           ),
           $accession_term => array(
             'sortable' => TRUE,
             'searchable' => TRUE,
             'label' => 'Annotation Term Accession',
+            'type' => 'xs:string',
+            'readonly' => FALSE,
+            'required' => TRUE,
           ),
           $definition_term => array(
             'sortable' => TRUE,
             'searchable' => TRUE,
             'label' => 'Annotation Term Description',
+            'type' => 'xs:string',
+            'readonly' => FALSE,
+            'required' => FALSE,
           ),
         ),
       ),
@@ -129,6 +139,9 @@ class sio__annotation extends ChadoField {
         'sortable' => FALSE,
         'searchable' => FALSE,
         'label' => 'Annotation Term Negates',
+        'type' => 'xs:boolean',
+        'readonly' => FALSE,
+        'required' => FALSE,
       );
     }
     if (array_key_exists('rank', $schema['fields'])) {
@@ -137,7 +150,9 @@ class sio__annotation extends ChadoField {
         'sortable' => FALSE,
         'searchable' => FALSE,
         'label' => 'Annotation Term Rank',
-        'type' => 'numeric'
+        'type' => 'xs:integer',
+        'readonly' => FALSE,
+        'required' => FALSE,
       );
     }
     if (array_key_exists('pub_id', $schema['fields'])) {
@@ -292,7 +307,7 @@ class sio__annotation extends ChadoField {
         'value' => array(
           $vocabulary => $cvterm->dbxref_id->db_id->name,
           $accession => $cvterm->dbxref_id->accession,
-          $definition => $cvterm->definition
+          $definition => isset($cvterm->definition) ? $cvterm->definition : ''
         ),
         'chado-' . $field_table . '__' . $pkey => $linker->$pkey,
         'chado-' . $field_table . '__' . $fkey_lcolumn => $linker->$fkey_lcolumn,
